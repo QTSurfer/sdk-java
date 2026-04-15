@@ -1,0 +1,16 @@
+target/
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+.DS_Store
+bin/
+out/
+*.log
+
+# NetBeans / IDE project metadata
+nb-configuration.xml
+nbactions*.xml
+nbproject/

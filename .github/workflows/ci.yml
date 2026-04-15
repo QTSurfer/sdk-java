@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+      - name: Build + unit tests
+        run: mvn -B verify
+        env:
+          # Skip the gated integration test in this job
+          JWT_API_TOKEN: ''
+
+  integration:
+    needs: unit
+    runs-on: ubuntu-latest
+    environment: Preproduction
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+      - name: Run integration test
+        env:
+          JWT_API_TOKEN: ${{ secrets.JWT_API_TOKEN }}
+          QTSURFER_API_URL: ${{ vars.QTSURFER_API_URL }}
+          QTSURFER_TEST_VERBOSE: '1'
+        run: |
+          if [ -z "$JWT_API_TOKEN" ]; then
+            echo "::warning::JWT_API_TOKEN not configured in the Preproduction environment; skipping."
+            exit 0
+          fi
+          mvn -B -Dtest='*IntegrationTest' test

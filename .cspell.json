@@ -1,0 +1,36 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "qtsurfer",
+    "QTSurfer",
+    "Wualabs",
+    "Preproduction",
+    "duckdb",
+    "lastra",
+    "Millis",
+    "println",
+    "Dtest",
+    "Behaviour",
+    "backtest",
+    "backtesting",
+    "Backtest",
+    "Backtesting",
+    "binance",
+    "BTCUSDT",
+    "USDT",
+    "heyapi",
+    "jitpack",
+    "openapi",
+    "openjdk",
+    "failsafe",
+    "Failsafe",
+    "slf4j",
+    "getenv"
+  ],
+  "ignorePaths": [
+    "target",
+    "node_modules",
+    "pom.xml"
+  ]
+}
