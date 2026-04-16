@@ -73,10 +73,10 @@ class BuildersTest {
     @Test
     void qtsurferOptionsBuilderAcceptsStringBaseUrl() {
         QTSurferOptions opts = QTSurferOptions.builder()
-                .baseUrl("https://api.qtsurfer.net/v1")
+                .baseUrl("https://api.qtsurfer.com/v1")
                 .token("t")
                 .build();
-        assertEquals("https://api.qtsurfer.net/v1", opts.baseUrl().toString());
+        assertEquals("https://api.qtsurfer.com/v1", opts.baseUrl().toString());
         assertEquals("t", opts.token());
         assertNull(opts.httpClient());
     }

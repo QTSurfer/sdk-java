@@ -8,7 +8,7 @@ import java.util.concurrent.ExecutorService;
 /**
  * Configuration for a {@link QTSurfer} client.
  *
- * @param baseUrl    API base URL (e.g. {@code https://api.qtsurfer.net/v1})
+ * @param baseUrl    API base URL (e.g. {@code https://api.qtsurfer.com/v1})
  * @param token      bearer token; {@code null} disables the {@code Authorization} header
  * @param httpClient optional custom {@link HttpClient}; when {@code null} the SDK creates one
  * @param executor   executor that runs the async workflow; when {@code null} uses {@code ForkJoinPool.commonPool()}

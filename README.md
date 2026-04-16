@@ -63,7 +63,7 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 QTSurfer qts = QTSurfer.builder()
-        .baseUrl("https://api.qtsurfer.net/v1")
+        .baseUrl("https://api.qtsurfer.com/v1")
         .token(System.getenv("JWT_API_TOKEN"))
         .build();
 
@@ -154,12 +154,12 @@ future.cancel(true);
 
 Hits the real backend with `ForcedTradeStrategy` on `binance BTC/USDT` for the previous UTC day. Controlled by env vars:
 
-- `JWT_API_TOKEN` — required; without it the test is disabled via `@EnabledIfEnvironmentVariable`.
-- `QTSURFER_API_URL` — optional; defaults to `https://api.qtsurfer.net/v1` (Preproduction).
-- `QTSURFER_TEST_VERBOSE=1` — stream progress events and the final result through SLF4J.
+- `JWT_API_TOKEN` — required; the test is skipped when absent.
+- `QTSURFER_API_URL` — required; the test is skipped when absent.
+- `QTSURFER_TEST_VERBOSE=1` — optional; stream progress events and the final result through SLF4J.
 
 ```bash
-JWT_API_TOKEN=... QTSURFER_TEST_VERBOSE=1 mvn -B -Dtest='*IntegrationTest' test
+JWT_API_TOKEN=... QTSURFER_API_URL=... QTSURFER_TEST_VERBOSE=1 mvn -B -Dtest='*IntegrationTest' test
 ```
 
 ## Roadmap

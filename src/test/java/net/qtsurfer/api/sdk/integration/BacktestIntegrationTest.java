@@ -31,16 +31,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>Configurable via env:
  * <ul>
  *   <li>{@code JWT_API_TOKEN} — bearer token (required)</li>
- *   <li>{@code QTSURFER_API_URL} — base URL (defaults to pre: https://api.qtsurfer.net/v1)</li>
+ *   <li>{@code QTSURFER_API_URL} — base URL (required)</li>
  *   <li>{@code QTSURFER_TEST_VERBOSE=1} — stream progress + final result to stdout</li>
  * </ul>
  */
 @EnabledIfEnvironmentVariable(named = "JWT_API_TOKEN", matches = ".+")
+@EnabledIfEnvironmentVariable(named = "QTSURFER_API_URL", matches = ".+")
 class BacktestIntegrationTest {
 
     private static final Logger log = LoggerFactory.getLogger(BacktestIntegrationTest.class);
 
-    private static final String DEFAULT_BASE_URL = "https://api.qtsurfer.net/v1";
     private static final boolean VERBOSE =
             "1".equals(System.getenv("QTSURFER_TEST_VERBOSE"))
                     || "true".equalsIgnoreCase(System.getenv("QTSURFER_TEST_VERBOSE"));
@@ -48,7 +48,7 @@ class BacktestIntegrationTest {
     @Test
     void completesCompilePrepareExecuteAgainstBinanceBtcUsdt() throws Exception {
         String token = Objects.requireNonNull(System.getenv("JWT_API_TOKEN"), "JWT_API_TOKEN");
-        String baseUrl = Objects.requireNonNullElse(System.getenv("QTSURFER_API_URL"), DEFAULT_BASE_URL);
+        String baseUrl = Objects.requireNonNull(System.getenv("QTSURFER_API_URL"), "QTSURFER_API_URL");
 
         QTSurfer qts = QTSurfer.builder()
                 .baseUrl(baseUrl)
