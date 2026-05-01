@@ -1,11 +1,15 @@
 package net.qtsurfer.api.sdk;
 
 import net.qtsurfer.api.client.api.BacktestingApi;
+import net.qtsurfer.api.client.binary.ExchangeBinaryDownloads;
 import net.qtsurfer.api.client.invoker.ApiClient;
+import net.qtsurfer.api.client.invoker.ApiException;
 import net.qtsurfer.api.client.model.ResultMap;
+import net.qtsurfer.api.sdk.errors.QTSDownloadError;
 import net.qtsurfer.api.sdk.internal.HttpStrategyCompileClient;
 import net.qtsurfer.api.sdk.workflows.BacktestWorkflow;
 
+import java.io.InputStream;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -35,10 +39,12 @@ public final class QTSurfer {
 
     private final QTSurferOptions options;
     private final BacktestWorkflow backtestWorkflow;
+    private final ExchangeBinaryDownloads downloads;
 
-    private QTSurfer(QTSurferOptions options, BacktestWorkflow backtestWorkflow) {
+    private QTSurfer(QTSurferOptions options, BacktestWorkflow backtestWorkflow, ExchangeBinaryDownloads downloads) {
         this.options = options;
         this.backtestWorkflow = backtestWorkflow;
+        this.downloads = downloads;
     }
 
     public QTSurferOptions options() { return options; }
@@ -78,6 +84,58 @@ public final class QTSurfer {
         return backtestWorkflow.runFull(request, options);
     }
 
+    /**
+     * Download one hour of raw tickers for an instrument as a streaming
+     * {@link InputStream}. Defaults to {@link DownloadFormat#LASTRA}; pass
+     * {@link DownloadFormat#PARQUET} for on-the-fly Parquet conversion.
+     *
+     * <p>The caller is responsible for closing the stream — typically via
+     * try-with-resources, piping to {@code Files.copy(...)}, or feeding it
+     * into a Lastra/Parquet reader.
+     *
+     * @throws QTSDownloadError on HTTP 4xx/5xx or transport failure
+     */
+    public InputStream tickers(String exchangeId, String base, String quote, String hour) {
+        return tickers(exchangeId, base, quote, hour, DownloadFormat.LASTRA);
+    }
+
+    public InputStream tickers(String exchangeId, String base, String quote, String hour, DownloadFormat format) {
+        Objects.requireNonNull(format, "format");
+        try {
+            return downloads.getTickersHour(exchangeId, base, quote, hour, format.wire());
+        } catch (ApiException e) {
+            throw new QTSDownloadError(
+                    "tickers download failed: " + describe(e), e);
+        }
+    }
+
+    /**
+     * Download one hour of klines for an instrument as a streaming
+     * {@link InputStream}. See {@link #tickers} for semantics.
+     *
+     * @throws QTSDownloadError on HTTP 4xx/5xx or transport failure
+     */
+    public InputStream klines(String exchangeId, String base, String quote, String hour) {
+        return klines(exchangeId, base, quote, hour, DownloadFormat.LASTRA);
+    }
+
+    public InputStream klines(String exchangeId, String base, String quote, String hour, DownloadFormat format) {
+        Objects.requireNonNull(format, "format");
+        try {
+            return downloads.getKlinesHour(exchangeId, base, quote, hour, format.wire());
+        } catch (ApiException e) {
+            throw new QTSDownloadError(
+                    "klines download failed: " + describe(e), e);
+        }
+    }
+
+    private static String describe(ApiException e) {
+        if (e.getResponseBody() != null && !e.getResponseBody().isBlank()) {
+            return "HTTP " + e.getCode() + " — " + e.getResponseBody();
+        }
+        return "HTTP " + e.getCode();
+    }
+
     public static Builder builder() { return new Builder(); }
 
     public static final class Builder {
@@ -99,8 +157,9 @@ public final class QTSurfer {
             }
             BacktestingApi backtestingApi = new BacktestingApi(apiClient);
             ExecutorService exec = opts.executor() != null ? opts.executor() : ForkJoinPool.commonPool();
-            return new QTSurfer(opts, new BacktestWorkflow(
-                    new HttpStrategyCompileClient(apiClient), backtestingApi, exec));
+            BacktestWorkflow workflow = new BacktestWorkflow(
+                    new HttpStrategyCompileClient(apiClient), backtestingApi, exec);
+            return new QTSurfer(opts, workflow, new ExchangeBinaryDownloads(apiClient));
         }
     }
 }

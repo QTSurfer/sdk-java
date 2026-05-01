@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-05-01
+
+### Added
+
+- **Domain objects (`Strategy`, `Backtest`):**
+  - `QTSurfer#compile(...)` returns a reusable `Strategy` handle that can launch multiple backtests.
+  - `Strategy#backtest(...)` returns a `Backtest` handle exposing `id()`, `state()`, `progress()` (a `Flow.Publisher<BacktestProgress>`), `await()`, and `cancel()`.
+  - `QTSurfer#backtest(request, options)` shortcut now composes `compile → backtest → await` over the new objects.
+- **Hourly tickers/klines downloads:**
+  - `QTSurfer#tickers(exchangeId, base, quote, hour[, format])` and `QTSurfer#klines(...)` — stream one hour of raw tickers or klines as `InputStream`.
+  - `DownloadFormat` enum (`LASTRA` default, `PARQUET` for on-the-fly conversion).
+  - `QTSDownloadError` (subclass of `QTSError`) — surfaced when the download fails (HTTP 4xx/5xx, transport error).
+
+### Changed
+
+- `api-client` dependency bumped to `v0.1.2` (adds `ExchangeBinaryDownloads`).
+- Internal `Backtest` workflow class renamed to `BacktestWorkflow` to free the public `Backtest` name for the new domain handle.
+
+### Removed
+
+- Hardcoded staging URL from the integration test default; `QTSURFER_API_URL` is now required alongside `JWT_API_TOKEN` (the test skips when either is absent).
+- Javadoc and README examples use the public domain (`api.qtsurfer.com`) instead of internal/staging URLs.
+
 ## [0.1.0] — 2026-04-15
 
 ### Added

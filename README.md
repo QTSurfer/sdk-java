@@ -106,6 +106,28 @@ Progress is emitted:
 - On every stage transition (`percent == null`).
 - After each poll where the backend reports `size > 0` (`percent` in 0–100).
 
+## Hourly tickers/klines downloads
+
+Stream one hour of raw ticker or kline data for an instrument. The default wire format is
+[Lastra](https://github.com/QTSurfer/lastra-java) (`application/vnd.lastra`); pass
+`DownloadFormat.PARQUET` for on-the-fly Parquet conversion.
+
+```java
+import net.qtsurfer.api.sdk.DownloadFormat;
+
+// Lastra (default), streamed straight to disk
+try (var in = qts.tickers("binance", "BTC", "USDT", "2026-01-15T10")) {
+    Files.copy(in, Path.of("BTC_USDT_2026-01-15_h10.lastra"));
+}
+
+// Parquet
+try (var in = qts.klines("binance", "BTC", "USDT", "2026-01-15T10", DownloadFormat.PARQUET)) {
+    // feed into Apache Parquet, DuckDB, etc.
+}
+```
+
+The caller closes the stream. HTTP errors surface as `QTSDownloadError` (subclass of `QTSError`).
+
 ## Error hierarchy
 
 All SDK errors extend `QTSError` (a `RuntimeException`) and surface as the cause of the `CompletionException` wrapping them when the future fails.
@@ -119,6 +141,7 @@ try {
         case QTSStrategyCompileError x -> log.error("Compile failed: {}", x.getMessage());
         case QTSPreparationError x     -> log.error("Data prep failed: {}", x.getMessage());
         case QTSExecutionError x       -> log.error("Execution failed: {}", x.getMessage());
+        case QTSDownloadError x        -> log.error("Download failed: {}", x.getMessage());
         case QTSTimeoutError x         -> log.error("Stage timed out: {}", x.getMessage());
         case QTSCanceledError x        -> log.error("Canceled");
         default                        -> throw e;
