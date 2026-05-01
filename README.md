@@ -39,7 +39,7 @@ Where `net.qtsurfer:api-client` gives you one method per endpoint, this package 
 <dependency>
   <groupId>com.github.QTSurfer</groupId>
   <artifactId>sdk-java</artifactId>
-  <version>v0.1.0</version>
+  <version>v0.2.0</version>
 </dependency>
 ```
 
@@ -47,7 +47,7 @@ The transitive `com.github.QTSurfer:api-client-java` and `dev.failsafe:failsafe`
 
 ### Maven Central (future)
 
-Once published to Central, the coordinate will be `net.qtsurfer:sdk:0.1.0`.
+Once published to Central, the coordinate will be `net.qtsurfer:sdk:0.2.0`.
 
 ## Quick start
 
@@ -89,6 +89,27 @@ ResultMap result = future.join();
 System.out.println("PnL: " + result.getPnlTotal());
 System.out.println("Trades: " + result.getTotalTrades());
 ```
+
+### Decomposed: reuse a compiled `Strategy` across runs
+
+`qts.backtest(req)` is a shortcut for `compile → backtest → await`. When you want
+the intermediate handles — to reuse a compiled strategy, subscribe to progress as
+a reactive stream, or cancel mid-run — use them directly:
+
+```java
+import net.qtsurfer.api.sdk.Backtest;
+import net.qtsurfer.api.sdk.Strategy;
+
+Strategy strategy = qts.compile(request).join();
+Backtest job = strategy.backtest(request, options).join();
+
+job.progress().subscribe(/* a Flow.Subscriber<BacktestProgress> */);
+
+ResultMap result = job.await().join();
+```
+
+`Backtest` exposes `id()`, `state()`, `progress()` (a `Flow.Publisher<BacktestProgress>`),
+`await()`, and `cancel()` (best-effort server-side `cancelExecution`).
 
 ## What `backtest()` does
 
@@ -151,13 +172,20 @@ try {
 
 ## Cancellation
 
-Cancel the returned `CompletableFuture` to stop polling. If the execute stage has already started server-side, the SDK best-effort calls `cancelExecution` on the backend.
+Two ways to cancel an in-flight backtest:
 
 ```java
+// 1. Cancel the future returned by the backtest() shortcut.
 CompletableFuture<ResultMap> future = qts.backtest(req, opts);
-// elsewhere:
 future.cancel(true);
+
+// 2. Cancel through the Backtest handle (decomposed API).
+Backtest job = strategy.backtest(req, opts).join();
+job.cancel();
 ```
+
+Both stop polling immediately and, if the execute stage has already started
+server-side, best-effort call `cancelExecution` on the backend.
 
 ## Under the hood
 
@@ -194,16 +222,14 @@ JWT_API_TOKEN=... QTSURFER_API_URL=... QTSURFER_TEST_VERBOSE=1 mvn -B -Dtest='*I
 - [x] Backoff, timeout, and cancellation via Failsafe policies
 - [x] `QTSError` hierarchy
 
-### v0.2 — Domain objects
+### v0.2 — Domain objects + binary downloads ✅
 
-- [ ] `Strategy` + `BacktestJob` classes with methods like `wait()`, `cancel()`, `stream()`
+- [x] `Strategy` + `Backtest` handles with `id()`, `state()`, `progress()`, `await()`, `cancel()`
+- [x] Progress exposed as `Flow.Publisher<BacktestProgress>` (JDK reactive-streams)
+- [x] Hourly tickers/klines downloads (`qts.tickers(...)` / `qts.klines(...)`) with `DownloadFormat` (Lastra/Parquet)
 - [ ] TTL cache for `exchanges` / `instruments`
 
-### v0.3 — Streaming progress
-
-- [ ] Progress exposed as `Flow.Publisher<BacktestProgress>` (JDK reactive-streams)
-
-### v0.4 — Ecosystem
+### v0.3 — Ecosystem
 
 - [ ] Loaders for `signalsUrl` Parquet into `duckdb-java` / `lastra-java`
 - [ ] Optional reactive adapters (Reactor / RxJava)
