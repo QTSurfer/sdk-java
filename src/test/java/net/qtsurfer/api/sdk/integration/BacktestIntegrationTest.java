@@ -80,16 +80,20 @@ class BacktestIntegrationTest {
 
         ResultMap result = qts.backtest(req, opts).get(5, TimeUnit.MINUTES);
 
+        // Log full result before any assertion so CI always shows the response
+        log.info("Result: {}", result);
+        log.info("  instrument={} strategyId={} pnl={} trades={} winRate={} sharpe={} cagr={} maxDD={}%",
+                result.getInstrument(), result.getStrategyId(),
+                result.getPnlTotal(), result.getTotalTrades(),
+                result.getWinRate(), result.getSharpeRatio(),
+                result.getCagr(), result.getMaxDrawdownPercent());
+
         assertNotNull(result, "result");
         assertNotNull(result.getStrategyId(), "strategyId");
         assertEquals("BTC/USDT", result.getInstrument(), "instrument");
         assertTrue(stages.contains(BacktestStage.COMPILING), "compiling stage fired");
         assertTrue(stages.contains(BacktestStage.PREPARING), "preparing stage fired");
         assertTrue(stages.contains(BacktestStage.EXECUTING), "executing stage fired");
-
-        if (VERBOSE) {
-            log.info("Result: {}", result);
-        }
     }
 
     private static String dayStartIso(int offsetDays) {

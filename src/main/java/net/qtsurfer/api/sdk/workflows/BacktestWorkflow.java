@@ -192,7 +192,15 @@ public final class BacktestWorkflow {
         if (norm == Normalized.ABORTED) {
             throw new QTSCanceledError("Execution aborted");
         }
-        return finalResult.getResults();
+        ResultMap results = finalResult.getResults();
+        log.info("Execution result for job {}: state={} instrument={} strategyId={} pnl={} trades={}",
+                executeJobId,
+                finalResult.getState().getStatus(),
+                results != null ? results.getInstrument() : null,
+                results != null ? results.getStrategyId() : null,
+                results != null ? results.getPnlTotal() : null,
+                results != null ? results.getTotalTrades() : null);
+        return results;
     }
 
     private String compileStrategy(String source, BacktestOptions opts) {
