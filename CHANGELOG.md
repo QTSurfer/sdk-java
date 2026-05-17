@@ -1,10 +1,19 @@
 # Changelog
 
-All notable changes to `net.qtsurfer:sdk` are documented here.
+All notable changes to `com.qtsurfer:sdk` are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.4.0] — 2026-05-17
+
+### Changed
+
+- Maven coordinates migrated to `com.qtsurfer:sdk` via JitPack custom domain (`git.qtsurfer.com`). Consumers should replace `com.github.QTSurfer:sdk-java:v0.3.x` with `com.qtsurfer:sdk:0.4.0`.
+- Java packages renamed from `net.qtsurfer.api.sdk` to `com.qtsurfer.api.sdk` throughout.
+- Dependency on `com.qtsurfer:api-client:0.2.0` (previously `com.github.QTSurfer:api-client-java:v0.1.2`).
+- Tags no longer use the `v` prefix; CI release workflow updated accordingly.
 
 ## [0.3.0] — 2026-05-17
 
@@ -13,7 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Exchange & instrument discovery:**
   - `QTSurfer#exchanges()` → `List<Exchange>` — list all exchanges available on the platform.
   - `QTSurfer#instruments(String exchangeId)` → `List<InstrumentDetail>` — list instruments for a given exchange, including `dataFrom`/`dataTo` availability windows, `lastPrice`, and `volume24h`.
-  - Both methods wrap `net.qtsurfer.api.client.api.ExchangeApi` (already generated in `api-client v0.1.2`) and surface failures as `QTSError`.
+  - Both methods wrap `com.qtsurfer.api.client.api.ExchangeApi` (already generated in `api-client v0.1.2`) and surface failures as `QTSError`.
 
 ## [0.2.0] — 2026-05-01
 

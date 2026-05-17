@@ -2,22 +2,22 @@
 
 <p align="center">
   <a href="https://github.com/QTSurfer/sdk-java/actions/workflows/ci.yml"><img src="https://github.com/QTSurfer/sdk-java/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://jitpack.io/#QTSurfer/sdk-java"><img src="https://jitpack.io/v/QTSurfer/sdk-java.svg" alt="JitPack"></a>
+  <a href="https://jitpack.io/#com.qtsurfer/sdk"><img src="https://jitpack.io/v/com.qtsurfer/sdk.svg" alt="JitPack"></a>
   <img src="https://img.shields.io/badge/JDK-17%2B-blue?logo=openjdk&logoColor=white" alt="JDK 17+">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
 </p>
 
 <p align="center">
-  Opinionated Java SDK for <a href="https://qtsurfer.com">QTSurfer</a>, built on top of <a href="https://github.com/QTSurfer/api-client-java">net.qtsurfer:api-client</a>.
+  Opinionated Java SDK for <a href="https://qtsurfer.com">QTSurfer</a>, built on top of <a href="https://github.com/QTSurfer/api-client-java">com.qtsurfer:api-client</a>.
 </p>
 
 <p align="center">
-  <code>net.qtsurfer:sdk</code> · <code>com.github.QTSurfer:sdk-java</code>
+  <code>com.qtsurfer:sdk</code>
 </p>
 
 ---
 
-Where `net.qtsurfer:api-client` gives you one method per endpoint, this package adds **workflow orchestration**, **normalized errors**, and **cancellation** — run a backtest with a single `CompletableFuture`.
+Where `com.qtsurfer:api-client` gives you one method per endpoint, this package adds **workflow orchestration**, **normalized errors**, and **cancellation** — run a backtest with a single `CompletableFuture`.
 
 - Powered by [`java.net.http.HttpClient`](https://docs.oracle.com/en/java/javase/17/docs/api/java.net.http/java/net/http/HttpClient.html) (JDK built-in) via the transitive client.
 - Retry/backoff/timeout delegated to [Failsafe](https://failsafe.dev) — no hand-rolled polling loops.
@@ -37,25 +37,25 @@ Where `net.qtsurfer:api-client` gives you one method per endpoint, this package 
 </repositories>
 
 <dependency>
-  <groupId>com.github.QTSurfer</groupId>
-  <artifactId>sdk-java</artifactId>
-  <version>v0.3.0</version>
+  <groupId>com.qtsurfer</groupId>
+  <artifactId>sdk</artifactId>
+  <version>0.4.0</version>
 </dependency>
 ```
 
-The transitive `com.github.QTSurfer:api-client-java` and `dev.failsafe:failsafe` come along automatically.
+The transitive `com.qtsurfer:api-client` and `dev.failsafe:failsafe` come along automatically.
 
 ### Maven Central (future)
 
-Once published to Central, the coordinate will be `net.qtsurfer:sdk:0.3.0`.
+Once published to Central, the coordinate will be `com.qtsurfer:sdk:0.4.0`.
 
 ## Quick start
 
 ```java
-import net.qtsurfer.api.client.model.ResultMap;
-import net.qtsurfer.api.sdk.BacktestOptions;
-import net.qtsurfer.api.sdk.BacktestRequest;
-import net.qtsurfer.api.sdk.QTSurfer;
+import com.qtsurfer.api.client.model.ResultMap;
+import com.qtsurfer.api.sdk.BacktestOptions;
+import com.qtsurfer.api.sdk.BacktestRequest;
+import com.qtsurfer.api.sdk.QTSurfer;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -97,8 +97,8 @@ the intermediate handles — to reuse a compiled strategy, subscribe to progress
 a reactive stream, or cancel mid-run — use them directly:
 
 ```java
-import net.qtsurfer.api.sdk.Backtest;
-import net.qtsurfer.api.sdk.Strategy;
+import com.qtsurfer.api.sdk.Backtest;
+import com.qtsurfer.api.sdk.Strategy;
 
 Strategy strategy = qts.compile(request).join();
 Backtest job = strategy.backtest(request, options).join();
@@ -134,7 +134,7 @@ Stream one hour of raw ticker or kline data for an instrument. The default wire 
 `DownloadFormat.PARQUET` for on-the-fly Parquet conversion.
 
 ```java
-import net.qtsurfer.api.sdk.DownloadFormat;
+import com.qtsurfer.api.sdk.DownloadFormat;
 
 // Lastra (default), streamed straight to disk
 try (var in = qts.tickers("binance", "BTC", "USDT", "2026-01-15T10")) {
@@ -154,8 +154,8 @@ The caller closes the stream. HTTP errors surface as `QTSDownloadError` (subclas
 List available exchanges and the instruments (with data-availability windows) for a given exchange.
 
 ```java
-import net.qtsurfer.api.client.model.Exchange;
-import net.qtsurfer.api.client.model.InstrumentDetail;
+import com.qtsurfer.api.client.model.Exchange;
+import com.qtsurfer.api.client.model.InstrumentDetail;
 
 // List exchanges
 List<Exchange> exchanges = qts.exchanges();
@@ -213,7 +213,7 @@ server-side, best-effort call `cancelExecution` on the backend.
 ## Under the hood
 
 - [`dev.failsafe:failsafe`](https://failsafe.dev) — retry policies with exponential backoff, optional per-stage `Timeout`, `withInterrupt()` so thread interruption from `CompletableFuture#cancel(true)` propagates cleanly.
-- [`net.qtsurfer:api-client`](https://github.com/QTSurfer/api-client-java) — generated with openapi-generator's `native` library; uses `java.net.http.HttpClient`, so no OkHttp/Apache HttpClient transitive dependency.
+- [`com.qtsurfer:api-client`](https://github.com/QTSurfer/api-client-java) — generated with openapi-generator's `native` library; uses `java.net.http.HttpClient`, so no OkHttp/Apache HttpClient transitive dependency.
 - `StatusNormalizer` — maps the backend's mixed-case status strings (`queued`, `started`, `completed`, `failed`, …) to a stable enum so the retry predicate and terminal checks work regardless of spec drift.
 
 ## Development
@@ -240,7 +240,7 @@ JWT_API_TOKEN=... QTSURFER_API_URL=... QTSURFER_TEST_VERBOSE=1 mvn -B -Dtest='*I
 
 ### v0.1 — Core workflow ✅
 
-- [x] `QTSurfer` client over `net.qtsurfer:api-client`
+- [x] `QTSurfer` client over `com.qtsurfer:api-client`
 - [x] `qts.backtest()` orchestrating compile → prepare → execute
 - [x] Backoff, timeout, and cancellation via Failsafe policies
 - [x] `QTSError` hierarchy

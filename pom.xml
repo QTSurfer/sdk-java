@@ -4,13 +4,13 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>net.qtsurfer</groupId>
+    <groupId>com.qtsurfer</groupId>
     <artifactId>sdk</artifactId>
-    <version>0.3.0</version>
+    <version>0.4.0</version>
     <packaging>jar</packaging>
 
     <name>QTSurfer SDK</name>
-    <description>Opinionated Java SDK for QTSurfer — workflow orchestration, normalized errors, and cancellation over net.qtsurfer:api-client.</description>
+    <description>Opinionated Java SDK for QTSurfer — workflow orchestration, normalized errors, and cancellation over com.qtsurfer:api-client.</description>
     <url>https://github.com/QTSurfer/sdk-java</url>
     <inceptionYear>2026</inceptionYear>
 
@@ -48,7 +48,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <api.client.version>v0.1.2</api.client.version>
+        <api.client.version>0.2.0</api.client.version>
         <failsafe.version>3.3.2</failsafe.version>
         <slf4j.version>2.0.16</slf4j.version>
         <jackson.version>2.18.2</jackson.version>
@@ -73,8 +73,8 @@
     <dependencies>
         <!-- QTSurfer API client (via JitPack) -->
         <dependency>
-            <groupId>com.github.QTSurfer</groupId>
-            <artifactId>api-client-java</artifactId>
+            <groupId>com.qtsurfer</groupId>
+            <artifactId>api-client</artifactId>
             <version>${api.client.version}</version>
         </dependency>
         <!-- Failsafe: retry/timeout/cancelation policies -->
