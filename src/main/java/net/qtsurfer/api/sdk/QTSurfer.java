@@ -1,15 +1,20 @@
 package net.qtsurfer.api.sdk;
 
 import net.qtsurfer.api.client.api.BacktestingApi;
+import net.qtsurfer.api.client.api.ExchangeApi;
 import net.qtsurfer.api.client.binary.ExchangeBinaryDownloads;
 import net.qtsurfer.api.client.invoker.ApiClient;
 import net.qtsurfer.api.client.invoker.ApiException;
+import net.qtsurfer.api.client.model.Exchange;
+import net.qtsurfer.api.client.model.InstrumentDetail;
 import net.qtsurfer.api.client.model.ResultMap;
 import net.qtsurfer.api.sdk.errors.QTSDownloadError;
+import net.qtsurfer.api.sdk.errors.QTSError;
 import net.qtsurfer.api.sdk.internal.HttpStrategyCompileClient;
 import net.qtsurfer.api.sdk.workflows.BacktestWorkflow;
 
 import java.io.InputStream;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -40,11 +45,14 @@ public final class QTSurfer {
     private final QTSurferOptions options;
     private final BacktestWorkflow backtestWorkflow;
     private final ExchangeBinaryDownloads downloads;
+    private final ExchangeApi exchangeApi;
 
-    private QTSurfer(QTSurferOptions options, BacktestWorkflow backtestWorkflow, ExchangeBinaryDownloads downloads) {
+    private QTSurfer(QTSurferOptions options, BacktestWorkflow backtestWorkflow,
+                     ExchangeBinaryDownloads downloads, ExchangeApi exchangeApi) {
         this.options = options;
         this.backtestWorkflow = backtestWorkflow;
         this.downloads = downloads;
+        this.exchangeApi = exchangeApi;
     }
 
     public QTSurferOptions options() { return options; }
@@ -82,6 +90,35 @@ public final class QTSurfer {
     public CompletableFuture<ResultMap> backtest(BacktestRequest request, BacktestOptions options) {
         Objects.requireNonNull(request, "request");
         return backtestWorkflow.runFull(request, options);
+    }
+
+    /**
+     * List available exchanges on the platform.
+     *
+     * @throws QTSError on HTTP 4xx/5xx or transport failure
+     */
+    public List<Exchange> exchanges() {
+        try {
+            return exchangeApi.getExchanges();
+        } catch (ApiException e) {
+            throw new QTSError("exchanges call failed: " + describe(e), e);
+        }
+    }
+
+    /**
+     * List instruments available on the given exchange, including data availability
+     * and market info.
+     *
+     * @param exchangeId exchange identifier (e.g. {@code "binance"})
+     * @throws QTSError on HTTP 4xx/5xx or transport failure
+     */
+    public List<InstrumentDetail> instruments(String exchangeId) {
+        Objects.requireNonNull(exchangeId, "exchangeId");
+        try {
+            return exchangeApi.getInstruments(exchangeId);
+        } catch (ApiException e) {
+            throw new QTSError("instruments call failed: " + describe(e), e);
+        }
     }
 
     /**
@@ -159,7 +196,8 @@ public final class QTSurfer {
             ExecutorService exec = opts.executor() != null ? opts.executor() : ForkJoinPool.commonPool();
             BacktestWorkflow workflow = new BacktestWorkflow(
                     new HttpStrategyCompileClient(apiClient), backtestingApi, exec);
-            return new QTSurfer(opts, workflow, new ExchangeBinaryDownloads(apiClient));
+            return new QTSurfer(opts, workflow, new ExchangeBinaryDownloads(apiClient),
+                    new ExchangeApi(apiClient));
         }
     }
 }

@@ -39,7 +39,7 @@ Where `net.qtsurfer:api-client` gives you one method per endpoint, this package 
 <dependency>
   <groupId>com.github.QTSurfer</groupId>
   <artifactId>sdk-java</artifactId>
-  <version>v0.2.0</version>
+  <version>v0.3.0</version>
 </dependency>
 ```
 
@@ -47,7 +47,7 @@ The transitive `com.github.QTSurfer:api-client-java` and `dev.failsafe:failsafe`
 
 ### Maven Central (future)
 
-Once published to Central, the coordinate will be `net.qtsurfer:sdk:0.2.0`.
+Once published to Central, the coordinate will be `net.qtsurfer:sdk:0.3.0`.
 
 ## Quick start
 
@@ -149,6 +149,29 @@ try (var in = qts.klines("binance", "BTC", "USDT", "2026-01-15T10", DownloadForm
 
 The caller closes the stream. HTTP errors surface as `QTSDownloadError` (subclass of `QTSError`).
 
+## Exchange & instrument discovery
+
+List available exchanges and the instruments (with data-availability windows) for a given exchange.
+
+```java
+import net.qtsurfer.api.client.model.Exchange;
+import net.qtsurfer.api.client.model.InstrumentDetail;
+
+// List exchanges
+List<Exchange> exchanges = qts.exchanges();
+exchanges.forEach(e -> System.out.println(e.getId() + " — " + e.getName()));
+// → binance — Binance
+// → binancefutures — Binance Futures
+
+// List instruments for an exchange
+List<InstrumentDetail> instruments = qts.instruments("binance");
+instruments.forEach(i -> System.out.printf(
+        "%s  data: %s → %s  last: %.2f%n",
+        i.getId(), i.getDataFrom(), i.getDataTo(), i.getLastPrice()));
+```
+
+HTTP errors surface as `QTSError`. Responses reflect live platform state — no client-side cache.
+
 ## Error hierarchy
 
 All SDK errors extend `QTSError` (a `RuntimeException`) and surface as the cause of the `CompletionException` wrapping them when the future fails.
@@ -227,10 +250,15 @@ JWT_API_TOKEN=... QTSURFER_API_URL=... QTSURFER_TEST_VERBOSE=1 mvn -B -Dtest='*I
 - [x] `Strategy` + `Backtest` handles with `id()`, `state()`, `progress()`, `await()`, `cancel()`
 - [x] Progress exposed as `Flow.Publisher<BacktestProgress>` (JDK reactive-streams)
 - [x] Hourly tickers/klines downloads (`qts.tickers(...)` / `qts.klines(...)`) with `DownloadFormat` (Lastra/Parquet)
+
+### v0.3 — Exchange & instrument discovery ✅
+
+- [x] `qts.exchanges()` → `List<Exchange>` (live, no cache)
+- [x] `qts.instruments(exchangeId)` → `List<InstrumentDetail>` with data-availability windows, last price, and 24 h volume
+
+### v0.4 — Ecosystem
+
 - [ ] TTL cache for `exchanges` / `instruments`
-
-### v0.3 — Ecosystem
-
 - [ ] Loaders for `signalsUrl` Parquet into `duckdb-java` / `lastra-java`
 - [ ] Optional reactive adapters (Reactor / RxJava)
 

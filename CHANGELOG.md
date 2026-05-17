@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-17
+
+### Added
+
+- **Exchange & instrument discovery:**
+  - `QTSurfer#exchanges()` → `List<Exchange>` — list all exchanges available on the platform.
+  - `QTSurfer#instruments(String exchangeId)` → `List<InstrumentDetail>` — list instruments for a given exchange, including `dataFrom`/`dataTo` availability windows, `lastPrice`, and `volume24h`.
+  - Both methods wrap `net.qtsurfer.api.client.api.ExchangeApi` (already generated in `api-client v0.1.2`) and surface failures as `QTSError`.
+
 ## [0.2.0] — 2026-05-01
 
 ### Added
