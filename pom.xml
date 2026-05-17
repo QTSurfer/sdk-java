@@ -74,7 +74,7 @@
         <!-- QTSurfer API client (via JitPack) -->
         <dependency>
             <groupId>com.qtsurfer</groupId>
-            <artifactId>api-client</artifactId>
+            <artifactId>api-client-java</artifactId>
             <version>${api.client.version}</version>
         </dependency>
         <!-- Failsafe: retry/timeout/cancelation policies -->
