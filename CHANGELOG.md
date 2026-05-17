@@ -6,13 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-05-17
+
+### Fixed
+
+- Corrected JitPack dependency coordinate for `api-client`: `com.qtsurfer:api-client-java:0.2.0` (JitPack uses the repo name as artifactId, not the pom artifactId).
+
 ## [0.4.0] — 2026-05-17
 
 ### Changed
 
-- Maven coordinates migrated to `com.qtsurfer:sdk` via JitPack custom domain (`git.qtsurfer.com`). Consumers should replace `com.github.QTSurfer:sdk-java:v0.3.x` with `com.qtsurfer:sdk:0.4.0`.
+- Maven coordinates migrated to `com.qtsurfer:sdk-java` via JitPack custom domain (`git.qtsurfer.com`). Consumers should replace `com.github.QTSurfer:sdk-java:v0.3.x` with `com.qtsurfer:sdk-java:0.4.1`.
 - Java packages renamed from `net.qtsurfer.api.sdk` to `com.qtsurfer.api.sdk` throughout.
-- Dependency on `com.qtsurfer:api-client:0.2.0` (previously `com.github.QTSurfer:api-client-java:v0.1.2`).
+- Dependency on `com.qtsurfer:api-client-java:0.2.0` (previously `com.github.QTSurfer:api-client-java:v0.1.2`).
 - Tags no longer use the `v` prefix; CI release workflow updated accordingly.
 
 ## [0.3.0] — 2026-05-17

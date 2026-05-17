@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/QTSurfer/sdk-java/actions/workflows/ci.yml"><img src="https://github.com/QTSurfer/sdk-java/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://jitpack.io/#com.qtsurfer/sdk"><img src="https://jitpack.io/v/com.qtsurfer/sdk.svg" alt="JitPack"></a>
+  <a href="https://jitpack.io/#com.qtsurfer/sdk-java"><img src="https://jitpack.io/v/com.qtsurfer/sdk-java.svg" alt="JitPack"></a>
   <img src="https://img.shields.io/badge/JDK-17%2B-blue?logo=openjdk&logoColor=white" alt="JDK 17+">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
 </p>
@@ -12,12 +12,12 @@
 </p>
 
 <p align="center">
-  <code>com.qtsurfer:sdk</code>
+  <code>com.qtsurfer:sdk-java</code>
 </p>
 
 ---
 
-Where `com.qtsurfer:api-client` gives you one method per endpoint, this package adds **workflow orchestration**, **normalized errors**, and **cancellation** — run a backtest with a single `CompletableFuture`.
+Where `com.qtsurfer:api-client-java` gives you one method per endpoint, this package adds **workflow orchestration**, **normalized errors**, and **cancellation** — run a backtest with a single `CompletableFuture`.
 
 - Powered by [`java.net.http.HttpClient`](https://docs.oracle.com/en/java/javase/17/docs/api/java.net.http/java/net/http/HttpClient.html) (JDK built-in) via the transitive client.
 - Retry/backoff/timeout delegated to [Failsafe](https://failsafe.dev) — no hand-rolled polling loops.
@@ -38,16 +38,16 @@ Where `com.qtsurfer:api-client` gives you one method per endpoint, this package 
 
 <dependency>
   <groupId>com.qtsurfer</groupId>
-  <artifactId>sdk</artifactId>
-  <version>0.4.0</version>
+  <artifactId>sdk-java</artifactId>
+  <version>0.4.1</version>
 </dependency>
 ```
 
-The transitive `com.qtsurfer:api-client` and `dev.failsafe:failsafe` come along automatically.
+The transitive `com.qtsurfer:api-client-java` and `dev.failsafe:failsafe` come along automatically.
 
 ### Maven Central (future)
 
-Once published to Central, the coordinate will be `com.qtsurfer:sdk:0.4.0`.
+Once published to Central, the coordinate will be `com.qtsurfer:sdk:0.4.1`.
 
 ## Quick start
 
