@@ -22,7 +22,12 @@ public enum DownloadFormat {
         this.wire = wire;
     }
 
-    ExchangeBinaryDownloads.Format wire() {
+    /**
+     * Internal: the underlying {@code ExchangeBinaryDownloads.Format} used by
+     * the api-client. Exposed so the SDK's own helpers can pass it through
+     * without re-encoding.
+     */
+    public ExchangeBinaryDownloads.Format wire() {
         return wire;
     }
 }
