@@ -47,7 +47,7 @@ The transitive `com.qtsurfer:api-client-java` and `dev.failsafe:failsafe` come a
 
 ### Maven Central (future)
 
-Once published to Central, the coordinate will be `com.qtsurfer:sdk:0.5.0`.
+Once published to Central, the coordinate will be `com.qtsurfer:sdk-java:0.5.0`.
 
 ## Quick start
 
