@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-05-25
+
+### Added
+
+- `QTSurfer.auth(apikey)` (plus `auth()` env-var overload and `auth(apikey, AuthOptions)`) — one-call helper that exchanges a long-lived API key for a short-lived JWT and returns an `AuthenticatedClient`. The returned session mirrors the existing `QTSurfer` surface (`compile`, `backtest`, `exchanges`, `instruments`, `tickers`, `klines`) but transparently refreshes the JWT once on a 401 before retrying.
+- `com.qtsurfer.api.sdk.auth.TokenStore` interface (`load` / `save` / `clear`) and a default `InMemoryTokenStore`. Adopters can plug in a file, secret manager, or desktop keychain. `AuthOptions` is the configuration record (base URL, token store, HTTP client, executor) — defaults to `https://api.qtsurfer.com/v1` and an in-memory store.
+- `QTSURFER_APIKEY` environment variable: read by `QTSurfer.auth(null, ...)` / `QTSurfer.auth()` when no API key argument is passed.
+- `QTSAuthError` (subclass of `QTSError`) raised when no API key is available or the JWT exchange fails.
+
+### Changed
+
+- Bumped `com.qtsurfer:api-client-java` to `0.3.1` (adds `AuthApi`, `AuthTokenResponse`, `AuthTokenError`).
+- `DownloadFormat#wire()` is now `public` so the auth-session can pass the underlying `ExchangeBinaryDownloads.Format` through.
+
 ## [0.4.1] — 2026-05-17
 
 ### Fixed

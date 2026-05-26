@@ -39,7 +39,7 @@ Where `com.qtsurfer:api-client-java` gives you one method per endpoint, this pac
 <dependency>
   <groupId>com.qtsurfer</groupId>
   <artifactId>sdk-java</artifactId>
-  <version>0.4.1</version>
+  <version>x.x.x</version>
 </dependency>
 ```
 
@@ -47,9 +47,86 @@ The transitive `com.qtsurfer:api-client-java` and `dev.failsafe:failsafe` come a
 
 ### Maven Central (future)
 
-Once published to Central, the coordinate will be `com.qtsurfer:sdk:0.4.1`.
+Once published to Central, the coordinate will be `com.qtsurfer:sdk-java:x.x.x`.
 
 ## Quick start
+
+One call: API key in, ready-to-use session out. JWT refresh on 401 is
+handled for you.
+
+```java
+import com.qtsurfer.api.client.model.ResultMap;
+import com.qtsurfer.api.sdk.BacktestRequest;
+import com.qtsurfer.api.sdk.QTSurfer;
+import com.qtsurfer.api.sdk.auth.AuthenticatedClient;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
+
+// Reads QTSURFER_APIKEY from env when no argument is passed.
+AuthenticatedClient qts = QTSurfer.auth();
+// Or: AuthenticatedClient qts = QTSurfer.auth("ak_...");
+
+ResultMap result = qts.backtest(
+        BacktestRequest.builder()
+                .strategy(Files.readString(Path.of("Strategy.java")))
+                .exchangeId("binance")
+                .instrument("BTC/USDT")
+                .from("2026-04-13T00:00:00Z")
+                .to("2026-04-14T00:00:00Z")
+                .storeSignals(true)
+                .build()).join();
+
+System.out.println("PnL: " + result.getPnlTotal());
+System.out.println("Trades: " + result.getTotalTrades());
+```
+
+### Environment
+
+| Variable          | Purpose                                              |
+| ----------------- | ---------------------------------------------------- |
+| `QTSURFER_APIKEY` | API key consumed by `QTSurfer.auth()` when no arg is passed |
+
+### Pluggable token storage
+
+Tokens are kept in memory by default. Implement `TokenStore` to back
+tokens by an on-disk file, a secret manager, or a desktop keychain:
+
+```java
+import com.qtsurfer.api.client.model.AuthTokenResponse;
+import com.qtsurfer.api.sdk.QTSurfer;
+import com.qtsurfer.api.sdk.auth.AuthOptions;
+import com.qtsurfer.api.sdk.auth.TokenStore;
+
+TokenStore fileStore = new TokenStore() {
+    @Override public AuthTokenResponse load() { /* read from disk */ return null; }
+    @Override public void save(AuthTokenResponse t) { /* write to disk */ }
+    @Override public void clear() { /* delete the file */ }
+};
+
+var qts = QTSurfer.auth(null,
+        AuthOptions.builder().store(fileStore).build());
+```
+
+`AuthOptions` also accepts `baseUrl`, `httpClient`, and `executor` for
+staging targets, custom transports, and dedicated thread pools.
+
+### Lower-level: hand-managed JWT
+
+If you already hold a JWT and want to manage refresh yourself, the
+`QTSurfer.builder()` path is unchanged:
+
+```java
+import com.qtsurfer.api.sdk.QTSurfer;
+
+QTSurfer qts = QTSurfer.builder()
+        .baseUrl("https://api.qtsurfer.com/v1")
+        .token(System.getenv("JWT_API_TOKEN"))
+        .build();
+```
+
+### Decomposed pipeline (advanced)
 
 ```java
 import com.qtsurfer.api.client.model.ResultMap;

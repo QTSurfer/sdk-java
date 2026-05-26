@@ -8,6 +8,8 @@ import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.client.model.ResultMap;
+import com.qtsurfer.api.sdk.auth.AuthOptions;
+import com.qtsurfer.api.sdk.auth.AuthenticatedClient;
 import com.qtsurfer.api.sdk.errors.QTSDownloadError;
 import com.qtsurfer.api.sdk.errors.QTSError;
 import com.qtsurfer.api.sdk.internal.HttpStrategyCompileClient;
@@ -171,6 +173,32 @@ public final class QTSurfer {
             return "HTTP " + e.getCode() + " — " + e.getResponseBody();
         }
         return "HTTP " + e.getCode();
+    }
+
+    /**
+     * One-call setup: exchange an API key for a short-lived JWT and return
+     * an {@link AuthenticatedClient} that mirrors this SDK's surface
+     * (compile / backtest / exchanges / instruments / tickers / klines)
+     * with automatic refresh-on-401.
+     *
+     * <p>If {@code apikey} is {@code null} or blank, the value is read from
+     * the {@code QTSURFER_APIKEY} environment variable.
+     *
+     * @throws com.qtsurfer.api.sdk.errors.QTSAuthError when no API key is
+     *         available or the initial JWT exchange fails.
+     */
+    public static AuthenticatedClient auth(String apikey) {
+        return AuthenticatedClient.auth(apikey);
+    }
+
+    /** Overload accepting an {@link AuthOptions} (base URL, token store, executor). */
+    public static AuthenticatedClient auth(String apikey, AuthOptions options) {
+        return AuthenticatedClient.auth(apikey, options);
+    }
+
+    /** Overload that reads the API key from {@code QTSURFER_APIKEY}. */
+    public static AuthenticatedClient auth() {
+        return AuthenticatedClient.auth();
     }
 
     public static Builder builder() { return new Builder(); }
