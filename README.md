@@ -39,7 +39,7 @@ Where `com.qtsurfer:api-client-java` gives you one method per endpoint, this pac
 <dependency>
   <groupId>com.qtsurfer</groupId>
   <artifactId>sdk-java</artifactId>
-  <version>0.5.0</version>
+  <version>x.x.x</version>
 </dependency>
 ```
 
@@ -47,7 +47,7 @@ The transitive `com.qtsurfer:api-client-java` and `dev.failsafe:failsafe` come a
 
 ### Maven Central (future)
 
-Once published to Central, the coordinate will be `com.qtsurfer:sdk-java:0.5.0`.
+Once published to Central, the coordinate will be `com.qtsurfer:sdk-java:x.x.x`.
 
 ## Quick start
 
