@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-07-10
+
+### Fixed 🐛
+
+- **Prepare is treated as terminal on `Partial`, not just `Completed`.** An instrument's coverage can span hours that hold no ticks — e.g. the tickers window `2026-07-10T13:00Z → 15:30Z`, where only the `14:00–15:00` hour traded — in which case the prepare reports partial coverage. The backtest workflow now proceeds to execute on the available data instead of polling that state until it times out.
+
 ## [0.6.0] — 2026-07-10
 
 ### Changed 🔄

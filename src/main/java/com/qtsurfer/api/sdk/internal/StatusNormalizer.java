@@ -16,7 +16,11 @@ public final class StatusNormalizer {
         if (raw == null) return Normalized.IN_PROGRESS;
         String value = raw.toString().toLowerCase(java.util.Locale.ROOT);
         return switch (value) {
-            case "completed" -> Normalized.COMPLETED;
+            // A prepare job is terminal as soon as it returns: {@code Completed}, or the
+            // legacy {@code Partial} (some hours in the range legitimately hold no data —
+            // e.g. low-activity hours — so those hours never arrive). Both mean "ready to
+            // execute on the available coverage"; polling on Partial would hang forever.
+            case "completed", "partial" -> Normalized.COMPLETED;
             case "failed" -> Normalized.FAILED;
             case "aborted", "cancelled", "canceled" -> Normalized.ABORTED;
             default -> Normalized.IN_PROGRESS;

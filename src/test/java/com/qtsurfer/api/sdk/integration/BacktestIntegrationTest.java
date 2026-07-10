@@ -1,5 +1,8 @@
 package com.qtsurfer.api.sdk.integration;
 
+import com.qtsurfer.api.client.model.CoverageWindow;
+import com.qtsurfer.api.client.model.InstrumentCoverage;
+import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.sdk.BacktestOptions;
 import com.qtsurfer.api.sdk.BacktestRequest;
@@ -14,8 +17,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -55,12 +57,26 @@ class BacktestIntegrationTest {
                 .token(token)
                 .build();
 
+        // Honor the instrument's real data availability from the instruments API
+        // instead of presupposing a fixed calendar day — the backend may hold only
+        // a short recent window. Prefer ticker coverage (this is a TICKER backtest),
+        // fall back to klines, and cap the span at 24h.
+        CoverageWindow window = availableWindow(qts, "binance", "BTC/USDT");
+        OffsetDateTime to = window.getTo();
+        OffsetDateTime from = window.getFrom();
+        if (Duration.between(from, to).compareTo(Duration.ofHours(24)) > 0) {
+            from = to.minus(Duration.ofHours(24));
+        }
+        if (VERBOSE) {
+            log.info("Backtest window (instrument coverage, capped at 24h): {} → {}", from, to);
+        }
+
         BacktestRequest req = BacktestRequest.builder()
                 .strategy(loadFixture("fixtures/ForcedTradeStrategy.java"))
                 .exchangeId("binance")
                 .instrument("BTC/USDT")
-                .from(dayStartIso(1))
-                .to(dayStartIso(0))
+                .from(from.toInstant().toString())
+                .to(to.toInstant().toString())
                 .build();
 
         Set<BacktestStage> stages = new ConcurrentSkipListSet<>();
@@ -96,11 +112,22 @@ class BacktestIntegrationTest {
         assertTrue(stages.contains(BacktestStage.EXECUTING), "executing stage fired");
     }
 
-    private static String dayStartIso(int offsetDays) {
-        return Instant.now()
-                .truncatedTo(ChronoUnit.DAYS)
-                .minus(offsetDays, ChronoUnit.DAYS)
-                .toString();
+    /**
+     * Resolves the instrument's currently-available data window from the
+     * instruments API, preferring ticker coverage and falling back to klines.
+     */
+    private static CoverageWindow availableWindow(QTSurfer qts, String exchangeId, String instrumentId) {
+        InstrumentDetail instrument = qts.instruments(exchangeId).stream()
+                .filter(i -> instrumentId.equals(i.getId()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(instrumentId + " not listed on " + exchangeId));
+        InstrumentCoverage coverage = instrument.getCoverage();
+        assertNotNull(coverage, "coverage for " + instrumentId);
+        CoverageWindow window = coverage.getTickers() != null ? coverage.getTickers() : coverage.getKlines();
+        assertNotNull(window, "ticker/kline coverage window for " + instrumentId);
+        assertNotNull(window.getFrom(), "coverage window from");
+        assertNotNull(window.getTo(), "coverage window to");
+        return window;
     }
 
     private static String loadFixture(String path) throws IOException {

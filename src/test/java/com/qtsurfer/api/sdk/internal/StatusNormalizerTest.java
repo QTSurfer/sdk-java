@@ -15,6 +15,14 @@ class StatusNormalizerTest {
     }
 
     @Test
+    void treatsPartialAsTerminalCompleted() {
+        // A prepare job is terminal on the legacy `Partial` status (low-activity hours
+        // never arrive), so it must resolve like `Completed`, not keep polling.
+        assertEquals(Normalized.COMPLETED, StatusNormalizer.normalize("partial"));
+        assertEquals(Normalized.COMPLETED, StatusNormalizer.normalize("Partial"));
+    }
+
+    @Test
     void recognizesFailed() {
         assertEquals(Normalized.FAILED, StatusNormalizer.normalize("failed"));
         assertEquals(Normalized.FAILED, StatusNormalizer.normalize("Failed"));
