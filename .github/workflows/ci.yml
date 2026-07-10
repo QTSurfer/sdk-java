@@ -27,7 +27,13 @@ jobs:
     needs: unit
     runs-on: ubuntu-latest
     environment: Preproduction
-    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'
+    # Do not run on tag pushes. The tagged commit already ran integration on its
+    # branch push; a second concurrent run submits an identical backtest that the
+    # backend deduplicates to the same job, so the two runs race for its result and
+    # the loser receives an empty Completed envelope. Branch pushes and PRs still gate.
+    if: >-
+      github.ref_type != 'tag' &&
+      (github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push')
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -50,7 +56,13 @@ jobs:
   release:
     needs: [unit, integration]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    # integration is skipped on tag pushes (see above), so gate on it not having
+    # failed rather than requiring success.
+    if: >-
+      always() &&
+      startsWith(github.ref, 'refs/tags/') &&
+      needs.unit.result == 'success' &&
+      needs.integration.result != 'failure'
     permissions:
       contents: write
     steps:
