@@ -168,7 +168,7 @@ public final class AuthenticatedClient {
         Objects.requireNonNull(exchangeId, "exchangeId");
         return withRefreshOn401(() -> {
             try {
-                return exchangeApi.getInstruments(exchangeId);
+                return exchangeApi.getInstruments(exchangeId).getData();
             } catch (ApiException e) {
                 throw new QTSError("instruments call failed: " + describe(e), e);
             }

@@ -108,8 +108,11 @@ public final class QTSurfer {
     }
 
     /**
-     * List instruments available on the given exchange, including data availability
-     * and market info.
+     * List instruments available on the given exchange, including per-data-type
+     * coverage (see {@link InstrumentDetail#getCoverage()}) and market info.
+     *
+     * <p>Unwraps the {@code InstrumentListResponse} HAL envelope returned by the
+     * underlying API client and returns just the instrument list.
      *
      * @param exchangeId exchange identifier (e.g. {@code "binance"})
      * @throws QTSError on HTTP 4xx/5xx or transport failure
@@ -117,7 +120,7 @@ public final class QTSurfer {
     public List<InstrumentDetail> instruments(String exchangeId) {
         Objects.requireNonNull(exchangeId, "exchangeId");
         try {
-            return exchangeApi.getInstruments(exchangeId);
+            return exchangeApi.getInstruments(exchangeId).getData();
         } catch (ApiException e) {
             throw new QTSError("instruments call failed: " + describe(e), e);
         }

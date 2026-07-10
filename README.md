@@ -228,9 +228,10 @@ The caller closes the stream. HTTP errors surface as `QTSDownloadError` (subclas
 
 ## Exchange & instrument discovery
 
-List available exchanges and the instruments (with data-availability windows) for a given exchange.
+List available exchanges and the instruments (with per-data-type coverage windows) for a given exchange.
 
 ```java
+import com.qtsurfer.api.client.model.CoverageWindow;
 import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.InstrumentDetail;
 
@@ -242,9 +243,16 @@ exchanges.forEach(e -> System.out.println(e.getId() + " — " + e.getName()));
 
 // List instruments for an exchange
 List<InstrumentDetail> instruments = qts.instruments("binance");
-instruments.forEach(i -> System.out.printf(
-        "%s  data: %s → %s  last: %.2f%n",
-        i.getId(), i.getDataFrom(), i.getDataTo(), i.getLastPrice()));
+instruments.forEach(i -> {
+    CoverageWindow window = i.getCoverage() == null
+            ? null
+            : i.getCoverage().getTickers() != null ? i.getCoverage().getTickers() : i.getCoverage().getKlines();
+    System.out.printf("%s  data: %s → %s  last: %.2f%n",
+            i.getId(),
+            window == null ? "n/a" : window.getFrom().toLocalDate(),
+            window == null ? "n/a" : window.getTo().toLocalDate(),
+            i.getLastPrice());
+});
 ```
 
 HTTP errors surface as `QTSError`. Responses reflect live platform state — no client-side cache.
@@ -331,7 +339,7 @@ JWT_API_TOKEN=... QTSURFER_API_URL=... QTSURFER_TEST_VERBOSE=1 mvn -B -Dtest='*I
 ### v0.3 — Exchange & instrument discovery ✅
 
 - [x] `qts.exchanges()` → `List<Exchange>` (live, no cache)
-- [x] `qts.instruments(exchangeId)` → `List<InstrumentDetail>` with data-availability windows, last price, and 24 h volume
+- [x] `qts.instruments(exchangeId)` → `List<InstrumentDetail>` with per-data-type coverage windows, last price, and 24 h volume
 
 ### v0.4 — Ecosystem
 

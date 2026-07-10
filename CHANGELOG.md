@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-07-10
+
+### Changed 🔄
+
+- Bumped `com.qtsurfer:api-client-java` to `0.4.0`, which wraps `ExchangeApi.getInstruments(exchangeId)` in an `InstrumentListResponse` HAL envelope (OpenAPI spec 0.97.0). `QTSurfer#instruments(String)` and `AuthenticatedClient#instruments(String)` now unwrap that envelope internally (`.getData()`), so both keep returning `List<InstrumentDetail>` — no signature or behavior change for SDK callers.
+- `InstrumentDetail` no longer carries flat `dataFrom`/`dataTo` fields upstream; use `InstrumentDetail#getCoverage()` (`InstrumentCoverage` → `tickers`/`klines` `CoverageWindow`) for data-availability windows instead.
+
+### Fixed 🐛
+
+- Bumped Mockito `5.14.2` → `5.23.0` (aligning with `mcp-java`) so the test suite's Byte Buddy mock instrumentation runs on JDK 25.
+
 ## [0.5.0] — 2026-05-25
 
 ### Added
