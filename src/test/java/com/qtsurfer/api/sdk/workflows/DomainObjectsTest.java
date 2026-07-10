@@ -117,10 +117,19 @@ class DomainObjectsTest {
                 .thenReturn(new JobState().status(JobState.StatusEnum.COMPLETED).size(1).completed(1));
         when(backtestingApi.executeBacktesting(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestingRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("exec-2"));
+        // The progress publisher is hot (SubmissionPublisher, no replay) and the
+        // subscriber can only attach after backtest() returns the handle, by which
+        // point the sub-millisecond poll loop may already have emitted the EXECUTING
+        // events and closed. Hold the first EXECUTING poll until the subscriber is
+        // attached so the event is observed deterministically.
+        CountDownLatch subscribed = new CountDownLatch(1);
         when(backtestingApi.getExecutionResult(anyString(), eq(DataSourceType.TICKER), eq("exec-2")))
-                .thenReturn(new BacktestJobResult()
-                        .state(new JobState().status(JobState.StatusEnum.STARTED).size(100).completed(25))
-                        .results(new ResultMap()))
+                .thenAnswer(inv -> {
+                    assertTrue(subscribed.await(5, TimeUnit.SECONDS), "subscriber attached before first EXECUTING poll");
+                    return new BacktestJobResult()
+                            .state(new JobState().status(JobState.StatusEnum.STARTED).size(100).completed(25))
+                            .results(new ResultMap());
+                })
                 .thenReturn(new BacktestJobResult()
                         .state(new JobState().status(JobState.StatusEnum.COMPLETED).size(100).completed(100))
                         .results(new ResultMap().strategyId("strategy-abc")));
@@ -132,7 +141,7 @@ class DomainObjectsTest {
         CountDownLatch complete = new CountDownLatch(1);
         job.progress().subscribe(new Flow.Subscriber<>() {
             Flow.Subscription sub;
-            @Override public void onSubscribe(Flow.Subscription s) { sub = s; s.request(Long.MAX_VALUE); }
+            @Override public void onSubscribe(Flow.Subscription s) { sub = s; s.request(Long.MAX_VALUE); subscribed.countDown(); }
             @Override public void onNext(BacktestProgress p) { seen.add(p); }
             @Override public void onError(Throwable t) { complete.countDown(); }
             @Override public void onComplete() { complete.countDown(); }
