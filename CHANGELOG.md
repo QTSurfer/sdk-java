@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-11
+
+### Added ✨
+
+- **Prepare coverage is surfaced on progress.** `BacktestProgress` gains a `coverageRatio` field (0–1) reported by the backend once preparation completes — the fraction of the requested window that actually holds data. It is non-null only on the final `PREPARING` event, letting callers react to a partially-covered range. Existing two-argument `BacktestProgress(stage, percent)` construction keeps working via a convenience constructor.
+
+### Changed 🔄
+
+- Bumped `com.qtsurfer:api-client-java` to `0.5.0` (API spec 0.98.0). The single-instrument preparation endpoint now returns `PrepareJobState` (adds `coverageRatio`, `totalHours`, `hoursWithData`, and a per-hour `hoursWithoutData` breakdown); the backtest workflow reads the new type internally with no change to its public method signatures.
+
+### Removed 🗑️
+
+- Dropped the defensive `Partial` prepare-status handling: spec 0.98.0 removed `Partial` from the job status enum (a single-instrument prepare is always terminal on `Completed`, and callers decide from `coverageRatio`). `StatusNormalizer` no longer special-cases it.
+
 ## [0.6.1] — 2026-07-10
 
 ### Fixed 🐛

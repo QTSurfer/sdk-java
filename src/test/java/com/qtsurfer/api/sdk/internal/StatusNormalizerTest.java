@@ -15,11 +15,11 @@ class StatusNormalizerTest {
     }
 
     @Test
-    void treatsPartialAsTerminalCompleted() {
-        // A prepare job is terminal on the legacy `Partial` status (low-activity hours
-        // never arrive), so it must resolve like `Completed`, not keep polling.
-        assertEquals(Normalized.COMPLETED, StatusNormalizer.normalize("partial"));
-        assertEquals(Normalized.COMPLETED, StatusNormalizer.normalize("Partial"));
+    void treatsUnknownStatusAsInProgress() {
+        // Spec 0.98.0 dropped the Partial status; a single-instrument prepare is now
+        // always terminal on Completed. Any unrecognized value keeps polling.
+        assertEquals(Normalized.IN_PROGRESS, StatusNormalizer.normalize("partial"));
+        assertEquals(Normalized.IN_PROGRESS, StatusNormalizer.normalize("queued"));
     }
 
     @Test

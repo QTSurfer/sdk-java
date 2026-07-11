@@ -7,6 +7,7 @@ import com.qtsurfer.api.client.model.DataSourceType;
 import com.qtsurfer.api.client.model.ExecuteBacktestingRequest;
 import com.qtsurfer.api.client.model.JobState;
 import com.qtsurfer.api.client.model.PrepareBacktestingRequest;
+import com.qtsurfer.api.client.model.PrepareJobState;
 import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.sdk.Backtest;
 import com.qtsurfer.api.sdk.BacktestOptions;
@@ -88,7 +89,7 @@ class DomainObjectsTest {
         when(backtestingApi.prepareBacktesting(anyString(), eq(DataSourceType.TICKER), any(PrepareBacktestingRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
         when(backtestingApi.getPreparationStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
-                .thenReturn(new JobState().status(JobState.StatusEnum.COMPLETED).size(1).completed(1));
+                .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED).size(1).completed(1));
         when(backtestingApi.executeBacktesting(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestingRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("exec-1"));
         when(backtestingApi.getExecutionResult(anyString(), eq(DataSourceType.TICKER), eq("exec-1")))
@@ -114,7 +115,7 @@ class DomainObjectsTest {
         when(backtestingApi.prepareBacktesting(anyString(), eq(DataSourceType.TICKER), any(PrepareBacktestingRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
         when(backtestingApi.getPreparationStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
-                .thenReturn(new JobState().status(JobState.StatusEnum.COMPLETED).size(1).completed(1));
+                .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED).size(1).completed(1));
         when(backtestingApi.executeBacktesting(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestingRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("exec-2"));
         // The progress publisher is hot (SubmissionPublisher, no replay) and the
@@ -161,7 +162,7 @@ class DomainObjectsTest {
         when(backtestingApi.prepareBacktesting(anyString(), eq(DataSourceType.TICKER), any(PrepareBacktestingRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
         when(backtestingApi.getPreparationStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
-                .thenReturn(new JobState().status(JobState.StatusEnum.COMPLETED).size(1).completed(1));
+                .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED).size(1).completed(1));
         when(backtestingApi.executeBacktesting(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestingRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("exec-abort"));
         lenient().when(backtestingApi.getExecutionResult(anyString(), eq(DataSourceType.TICKER), eq("exec-abort")))
@@ -205,7 +206,7 @@ class DomainObjectsTest {
         when(backtestingApi.prepareBacktesting(anyString(), eq(DataSourceType.TICKER), any(PrepareBacktestingRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
         when(backtestingApi.getPreparationStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
-                .thenReturn(new JobState().status(JobState.StatusEnum.COMPLETED).size(1).completed(1));
+                .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED).size(1).completed(1));
         when(backtestingApi.executeBacktesting(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestingRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("exec-1"));
         when(backtestingApi.getExecutionResult(anyString(), eq(DataSourceType.TICKER), eq("exec-1")))

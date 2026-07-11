@@ -10,6 +10,7 @@ import com.qtsurfer.api.client.model.DataSourceType;
 import com.qtsurfer.api.client.model.ExecuteBacktestingRequest;
 import com.qtsurfer.api.client.model.JobState;
 import com.qtsurfer.api.client.model.PrepareBacktestingRequest;
+import com.qtsurfer.api.client.model.PrepareJobState;
 import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.sdk.Backtest;
 import com.qtsurfer.api.sdk.Backtest.State;
@@ -242,7 +243,7 @@ public final class BacktestWorkflow {
         }
         String prepareJobId = accepted.getJobId();
 
-        JobState state = poll(
+        PrepareJobState state = poll(
                 BacktestStage.PREPARING,
                 opts,
                 percent -> emit(opts.onProgress(), new BacktestProgress(BacktestStage.PREPARING, percent)),
@@ -259,6 +260,9 @@ public final class BacktestWorkflow {
         if (norm == Normalized.ABORTED) {
             throw new QTSCanceledError("Data preparation aborted");
         }
+        // Surface the backend's coverage ratio for the prepared window (spec 0.98.0) on the
+        // final PREPARING event, so callers can react to a partially-covered range.
+        emit(opts.onProgress(), new BacktestProgress(BacktestStage.PREPARING, 100.0, state.getCoverageRatio()));
         return prepareJobId;
     }
 
@@ -299,16 +303,17 @@ public final class BacktestWorkflow {
     }
 
     private static Double extractPercent(Object result) {
-        if (result instanceof JobState js) return computePercent(js);
-        if (result instanceof BacktestJobResult bjr) return computePercent(bjr.getState());
+        if (result instanceof JobState js) return computePercent(js.getSize(), js.getCompleted());
+        if (result instanceof PrepareJobState pjs) return computePercent(pjs.getSize(), pjs.getCompleted());
+        if (result instanceof BacktestJobResult bjr && bjr.getState() != null) {
+            return computePercent(bjr.getState().getSize(), bjr.getState().getCompleted());
+        }
         return null;
     }
 
-    private static Double computePercent(JobState state) {
-        if (state == null || state.getSize() == null || state.getCompleted() == null) return null;
-        int size = state.getSize();
-        if (size <= 0) return null;
-        return (state.getCompleted().doubleValue() / size) * 100.0;
+    private static Double computePercent(Integer size, Integer completed) {
+        if (size == null || completed == null || size <= 0) return null;
+        return (completed.doubleValue() / size) * 100.0;
     }
 
     private static void emit(Consumer<BacktestProgress> sink, BacktestProgress p) {

@@ -16,11 +16,10 @@ public final class StatusNormalizer {
         if (raw == null) return Normalized.IN_PROGRESS;
         String value = raw.toString().toLowerCase(java.util.Locale.ROOT);
         return switch (value) {
-            // A prepare job is terminal as soon as it returns: {@code Completed}, or the
-            // legacy {@code Partial} (some hours in the range legitimately hold no data —
-            // e.g. low-activity hours — so those hours never arrive). Both mean "ready to
-            // execute on the available coverage"; polling on Partial would hang forever.
-            case "completed", "partial" -> Normalized.COMPLETED;
+            // A single-instrument prepare is terminal as soon as it returns Completed;
+            // the caller reads the reported coverage ratio to decide what to do with a
+            // partially-covered window (spec 0.98.0 dropped the old Partial status).
+            case "completed" -> Normalized.COMPLETED;
             case "failed" -> Normalized.FAILED;
             case "aborted", "cancelled", "canceled" -> Normalized.ABORTED;
             default -> Normalized.IN_PROGRESS;
