@@ -101,7 +101,7 @@ public final class QTSurfer {
      */
     public List<Exchange> exchanges() {
         try {
-            return exchangeApi.getExchanges();
+            return exchangeApi.listExchanges();
         } catch (ApiException e) {
             throw new QTSError("exchanges call failed: " + describe(e), e);
         }
@@ -120,7 +120,7 @@ public final class QTSurfer {
     public List<InstrumentDetail> instruments(String exchangeId) {
         Objects.requireNonNull(exchangeId, "exchangeId");
         try {
-            return exchangeApi.getInstruments(exchangeId).getData();
+            return exchangeApi.listInstruments(exchangeId).getData();
         } catch (ApiException e) {
             throw new QTSError("instruments call failed: " + describe(e), e);
         }
@@ -190,18 +190,18 @@ public final class QTSurfer {
      * @throws com.qtsurfer.api.sdk.errors.QTSAuthError when no API key is
      *         available or the initial JWT exchange fails.
      */
-    public static AuthenticatedClient auth(String apikey) {
-        return AuthenticatedClient.auth(apikey);
+    public static AuthenticatedClient authenticate(String apikey) {
+        return AuthenticatedClient.authenticate(apikey);
     }
 
     /** Overload accepting an {@link AuthOptions} (base URL, token store, executor). */
-    public static AuthenticatedClient auth(String apikey, AuthOptions options) {
-        return AuthenticatedClient.auth(apikey, options);
+    public static AuthenticatedClient authenticate(String apikey, AuthOptions options) {
+        return AuthenticatedClient.authenticate(apikey, options);
     }
 
     /** Overload that reads the API key from {@code QTSURFER_APIKEY}. */
-    public static AuthenticatedClient auth() {
-        return AuthenticatedClient.auth();
+    public static AuthenticatedClient authenticate() {
+        return AuthenticatedClient.authenticate();
     }
 
     public static Builder builder() { return new Builder(); }

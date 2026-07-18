@@ -7,10 +7,10 @@ import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.AcceptedJob;
 import com.qtsurfer.api.client.model.BacktestJobResult;
 import com.qtsurfer.api.client.model.DataSourceType;
-import com.qtsurfer.api.client.model.ExecuteBacktestingRequest;
+import com.qtsurfer.api.client.model.ExecuteBacktestRequest;
 import com.qtsurfer.api.client.model.JobState;
-import com.qtsurfer.api.client.model.PrepareBacktestingRequest;
 import com.qtsurfer.api.client.model.PrepareJobState;
+import com.qtsurfer.api.client.model.PrepareRequest;
 import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.sdk.Backtest;
 import com.qtsurfer.api.sdk.Backtest.State;
@@ -37,7 +37,6 @@ import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Flow;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -93,7 +92,7 @@ public final class BacktestWorkflow {
 
             emit(safeOpts.onProgress(), new BacktestProgress(BacktestStage.EXECUTING, null));
             AcceptedJob accepted = call(
-                    () -> backtestingApi.executeBacktesting(req.exchangeId(), TICKER, buildExecuteBody(req, strategy, prepareJobId)),
+                    () -> backtestingApi.executeBacktest(req.exchangeId(), TICKER, buildExecuteBody(req, strategy, prepareJobId)),
                     "Execute submission failed",
                     QTSExecutionError::new);
             if (accepted == null || accepted.getJobId() == null) {
@@ -110,9 +109,9 @@ public final class BacktestWorkflow {
                 .thenCompose(Backtest::await);
     }
 
-    private ExecuteBacktestingRequest buildExecuteBody(
+    private ExecuteBacktestRequest buildExecuteBody(
             BacktestRequest req, Strategy strategy, String prepareJobId) {
-        ExecuteBacktestingRequest body = new ExecuteBacktestingRequest()
+        ExecuteBacktestRequest body = new ExecuteBacktestRequest()
                 .prepareJobId(prepareJobId)
                 .strategyId(strategy.id());
         if (req.storeSignals() != null) {
@@ -136,7 +135,7 @@ public final class BacktestWorkflow {
         Runnable cancelHook = () -> {
             resultFuture.cancel(true);
             try {
-                backtestingApi.cancelExecution(req.exchangeId(), TICKER, executeJobId);
+                backtestingApi.cancelBacktest(req.exchangeId(), TICKER, executeJobId);
             } catch (Exception ignore) {
                 // Best effort
             }
@@ -181,7 +180,7 @@ public final class BacktestWorkflow {
                 opts,
                 percent -> progressSink.accept(new BacktestProgress(BacktestStage.EXECUTING, percent)),
                 () -> call(
-                        () -> backtestingApi.getExecutionResult(req.exchangeId(), TICKER, executeJobId),
+                        () -> backtestingApi.getBacktestResult(req.exchangeId(), TICKER, executeJobId),
                         "Execution result request failed",
                         QTSExecutionError::new),
                 r -> StatusNormalizer.normalize(r.getState().getStatus()) == Normalized.IN_PROGRESS);
@@ -230,12 +229,12 @@ public final class BacktestWorkflow {
     }
 
     private String prepareData(BacktestRequest req, BacktestOptions opts) {
-        PrepareBacktestingRequest body = new PrepareBacktestingRequest()
+        PrepareRequest body = new PrepareRequest()
                 .instrument(req.instrument())
                 .from(req.from())
                 .to(req.to());
         AcceptedJob accepted = call(
-                () -> backtestingApi.prepareBacktesting(req.exchangeId(), TICKER, body),
+                () -> backtestingApi.prepareBacktest(req.exchangeId(), TICKER, body),
                 "Prepare submission failed",
                 QTSPreparationError::new);
         if (accepted == null || accepted.getJobId() == null) {
@@ -248,7 +247,7 @@ public final class BacktestWorkflow {
                 opts,
                 percent -> emit(opts.onProgress(), new BacktestProgress(BacktestStage.PREPARING, percent)),
                 () -> call(
-                        () -> backtestingApi.getPreparationStatus(req.exchangeId(), TICKER, prepareJobId),
+                        () -> backtestingApi.getPrepareStatus(req.exchangeId(), TICKER, prepareJobId),
                         "Preparation status request failed",
                         QTSPreparationError::new),
                 r -> StatusNormalizer.normalize(r.getStatus()) == Normalized.IN_PROGRESS);

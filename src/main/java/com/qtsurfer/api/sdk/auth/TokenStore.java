@@ -9,7 +9,7 @@ import com.qtsurfer.api.client.model.AuthTokenResponse;
  * implement this SAM to back tokens by an on-disk file, a secret manager,
  * etc. The SDK calls {@link #load()} once at session start to seed any
  * previously cached token, {@link #save(AuthTokenResponse)} after every
- * successful {@code auth()} / refresh, and {@link #clear()} when the
+ * successful {@code authenticate()} / refresh, and {@link #clear()} when the
  * session is explicitly invalidated.
  *
  * <p>Implementations are expected to be thread-safe.

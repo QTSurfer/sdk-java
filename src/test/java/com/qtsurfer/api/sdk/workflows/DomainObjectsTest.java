@@ -4,9 +4,9 @@ import com.qtsurfer.api.client.api.BacktestingApi;
 import com.qtsurfer.api.client.model.AcceptedJob;
 import com.qtsurfer.api.client.model.BacktestJobResult;
 import com.qtsurfer.api.client.model.DataSourceType;
-import com.qtsurfer.api.client.model.ExecuteBacktestingRequest;
+import com.qtsurfer.api.client.model.ExecuteBacktestRequest;
 import com.qtsurfer.api.client.model.JobState;
-import com.qtsurfer.api.client.model.PrepareBacktestingRequest;
+import com.qtsurfer.api.client.model.PrepareRequest;
 import com.qtsurfer.api.client.model.PrepareJobState;
 import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.sdk.Backtest;
@@ -27,7 +27,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ForkJoinPool;
@@ -86,13 +85,13 @@ class DomainObjectsTest {
         when(strategyClient.submit(anyString())).thenReturn("compile-job-1");
         when(strategyClient.status("compile-job-1"))
                 .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
-        when(backtestingApi.prepareBacktesting(anyString(), eq(DataSourceType.TICKER), any(PrepareBacktestingRequest.class)))
+        when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
-        when(backtestingApi.getPreparationStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
+        when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
                 .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED).size(1).completed(1));
-        when(backtestingApi.executeBacktesting(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestingRequest.class)))
+        when(backtestingApi.executeBacktest(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("exec-1"));
-        when(backtestingApi.getExecutionResult(anyString(), eq(DataSourceType.TICKER), eq("exec-1")))
+        when(backtestingApi.getBacktestResult(anyString(), eq(DataSourceType.TICKER), eq("exec-1")))
                 .thenReturn(new BacktestJobResult()
                         .state(new JobState().status(JobState.StatusEnum.COMPLETED).size(100).completed(100))
                         .results(new ResultMap().strategyId("strategy-abc").instrument("BTC/USDT")));
@@ -112,11 +111,11 @@ class DomainObjectsTest {
         when(strategyClient.submit(anyString())).thenReturn("compile-job-1");
         when(strategyClient.status("compile-job-1"))
                 .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
-        when(backtestingApi.prepareBacktesting(anyString(), eq(DataSourceType.TICKER), any(PrepareBacktestingRequest.class)))
+        when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
-        when(backtestingApi.getPreparationStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
+        when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
                 .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED).size(1).completed(1));
-        when(backtestingApi.executeBacktesting(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestingRequest.class)))
+        when(backtestingApi.executeBacktest(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("exec-2"));
         // The progress publisher is hot (SubmissionPublisher, no replay) and the
         // subscriber can only attach after backtest() returns the handle, by which
@@ -124,7 +123,7 @@ class DomainObjectsTest {
         // events and closed. Hold the first EXECUTING poll until the subscriber is
         // attached so the event is observed deterministically.
         CountDownLatch subscribed = new CountDownLatch(1);
-        when(backtestingApi.getExecutionResult(anyString(), eq(DataSourceType.TICKER), eq("exec-2")))
+        when(backtestingApi.getBacktestResult(anyString(), eq(DataSourceType.TICKER), eq("exec-2")))
                 .thenAnswer(inv -> {
                     assertTrue(subscribed.await(5, TimeUnit.SECONDS), "subscriber attached before first EXECUTING poll");
                     return new BacktestJobResult()
@@ -159,13 +158,13 @@ class DomainObjectsTest {
         when(strategyClient.submit(anyString())).thenReturn("compile-job-1");
         when(strategyClient.status("compile-job-1"))
                 .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
-        when(backtestingApi.prepareBacktesting(anyString(), eq(DataSourceType.TICKER), any(PrepareBacktestingRequest.class)))
+        when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
-        when(backtestingApi.getPreparationStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
+        when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
                 .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED).size(1).completed(1));
-        when(backtestingApi.executeBacktesting(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestingRequest.class)))
+        when(backtestingApi.executeBacktest(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("exec-abort"));
-        lenient().when(backtestingApi.getExecutionResult(anyString(), eq(DataSourceType.TICKER), eq("exec-abort")))
+        lenient().when(backtestingApi.getBacktestResult(anyString(), eq(DataSourceType.TICKER), eq("exec-abort")))
                 .thenReturn(new BacktestJobResult()
                         .state(new JobState().status(JobState.StatusEnum.STARTED).size(100).completed(10))
                         .results(new ResultMap()));
@@ -188,14 +187,14 @@ class DomainObjectsTest {
         while (System.currentTimeMillis() < deadline) {
             try {
                 org.mockito.Mockito.verify(backtestingApi, atLeastOnce())
-                        .cancelExecution("binance", DataSourceType.TICKER, "exec-abort");
+                        .cancelBacktest("binance", DataSourceType.TICKER, "exec-abort");
                 return;
             } catch (AssertionError e) {
                 Thread.sleep(50);
             }
         }
         org.mockito.Mockito.verify(backtestingApi, atLeastOnce())
-                .cancelExecution("binance", DataSourceType.TICKER, "exec-abort");
+                .cancelBacktest("binance", DataSourceType.TICKER, "exec-abort");
     }
 
     @Test
@@ -203,13 +202,13 @@ class DomainObjectsTest {
         when(strategyClient.submit(anyString())).thenReturn("compile-job-1");
         when(strategyClient.status("compile-job-1"))
                 .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
-        when(backtestingApi.prepareBacktesting(anyString(), eq(DataSourceType.TICKER), any(PrepareBacktestingRequest.class)))
+        when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
-        when(backtestingApi.getPreparationStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
+        when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
                 .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED).size(1).completed(1));
-        when(backtestingApi.executeBacktesting(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestingRequest.class)))
+        when(backtestingApi.executeBacktest(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("exec-1"));
-        when(backtestingApi.getExecutionResult(anyString(), eq(DataSourceType.TICKER), eq("exec-1")))
+        when(backtestingApi.getBacktestResult(anyString(), eq(DataSourceType.TICKER), eq("exec-1")))
                 .thenReturn(new BacktestJobResult()
                         .state(new JobState().status(JobState.StatusEnum.COMPLETED).size(100).completed(100))
                         .results(new ResultMap().strategyId("strategy-abc")));

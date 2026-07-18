@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 /**
  * Authenticated SDK session.
  *
- * <p>Created by {@link com.qtsurfer.api.sdk.QTSurfer#auth(String)} (or the
+ * <p>Created by {@link com.qtsurfer.api.sdk.QTSurfer#authenticate(String)} (or the
  * overload that accepts an {@link AuthOptions}). Wraps the underlying
  * api-client, owns a JWT (in memory by default, or in the provided
  * {@link TokenStore}), and transparently re-exchanges the API key for a
@@ -88,12 +88,12 @@ public final class AuthenticatedClient {
     public synchronized AuthTokenResponse refresh() {
         AuthTokenResponse fresh;
         try {
-            fresh = authApi.auth();
+            fresh = authApi.authenticate();
         } catch (ApiException e) {
-            throw new QTSAuthError("auth() failed: HTTP " + e.getCode(), e);
+            throw new QTSAuthError("authenticate() failed: HTTP " + e.getCode(), e);
         }
         if (fresh == null) {
-            throw new QTSAuthError("auth() returned an empty response");
+            throw new QTSAuthError("authenticate() returned an empty response");
         }
         cached.set(fresh);
         mirror();
@@ -157,7 +157,7 @@ public final class AuthenticatedClient {
     public List<Exchange> exchanges() {
         return withRefreshOn401(() -> {
             try {
-                return exchangeApi.getExchanges();
+                return exchangeApi.listExchanges();
             } catch (ApiException e) {
                 throw new QTSError("exchanges call failed: " + describe(e), e);
             }
@@ -168,7 +168,7 @@ public final class AuthenticatedClient {
         Objects.requireNonNull(exchangeId, "exchangeId");
         return withRefreshOn401(() -> {
             try {
-                return exchangeApi.getInstruments(exchangeId).getData();
+                return exchangeApi.listInstruments(exchangeId).getData();
             } catch (ApiException e) {
                 throw new QTSError("instruments call failed: " + describe(e), e);
             }
@@ -266,7 +266,7 @@ public final class AuthenticatedClient {
      * is raised when neither source yields a usable API key, or when the
      * initial JWT exchange fails.
      */
-    public static AuthenticatedClient auth(String apikey, AuthOptions opts) {
+    public static AuthenticatedClient authenticate(String apikey, AuthOptions opts) {
         String resolved = resolveApikey(apikey);
         AuthOptions o = opts != null ? opts : AuthOptions.defaults();
 
@@ -302,12 +302,12 @@ public final class AuthenticatedClient {
         return session;
     }
 
-    public static AuthenticatedClient auth(String apikey) {
-        return auth(apikey, AuthOptions.defaults());
+    public static AuthenticatedClient authenticate(String apikey) {
+        return authenticate(apikey, AuthOptions.defaults());
     }
 
-    public static AuthenticatedClient auth() {
-        return auth(null, AuthOptions.defaults());
+    public static AuthenticatedClient authenticate() {
+        return authenticate(null, AuthOptions.defaults());
     }
 
     /**
@@ -343,6 +343,6 @@ public final class AuthenticatedClient {
         if (explicit != null && !explicit.isBlank()) return explicit;
         if (envValue != null && !envValue.isBlank()) return envValue;
         throw new QTSAuthError(
-                "auth() requires an apikey (argument or " + APIKEY_ENV_VAR + " env var)");
+                "authenticate() requires an apikey (argument or " + APIKEY_ENV_VAR + " env var)");
     }
 }

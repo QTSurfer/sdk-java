@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-07-18
+
+### Changed (BREAKING)
+
+- **`QTSurfer.auth(...)` / `AuthenticatedClient.auth(...)` renamed to `authenticate(...)`** (all three overloads: no-arg, `(apikey)`, `(apikey, AuthOptions)`). The generated client's `AuthApi.auth()` operation was renamed to `AuthApi.authenticate()` (API spec 0.99.1); the SDK's own entry point is renamed to match, so the "authenticate" name is consistent end-to-end from the wire operationId through the SDK's public facade.
+
+  ```diff
+  - AuthenticatedClient qts = QTSurfer.auth(apikey);
+  + AuthenticatedClient qts = QTSurfer.authenticate(apikey);
+  ```
+
+### Changed 🔄
+
+- Bumped `com.qtsurfer:api-client-java` to `0.6.0` (API spec 0.99.1, 16 operationId renames — no request/response shape, field, or endpoint changes). Internal call sites in `BacktestWorkflow` now use the renamed generated methods (`prepareBacktest`, `getPrepareStatus`, `executeBacktest`, `cancelBacktest`, `getBacktestResult`) and `AuthenticatedClient`/`QTSurfer` use `listExchanges`/`listInstruments`; no change to any of those classes' other public signatures.
+- Two generated request types were renamed as a byproduct of the operationId renames (`PrepareBacktestingRequest` → `PrepareRequest`, `ExecuteBacktestingRequest` → `ExecuteBacktestRequest`). Both are internal to `BacktestWorkflow` and were never exposed on the SDK's public surface, so this is not a breaking change on its own.
+
 ## [0.7.0] — 2026-07-11
 
 ### Added ✨

@@ -19,7 +19,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -109,7 +108,7 @@ class AuthenticatedClientTest {
     @Test
     void usesExplicitApikeyForTheMintCall() {
         tokenResponses.add(jwt("jwt-explicit", "free"));
-        AuthenticatedClient session = QTSurfer.auth("ak_explicit", opts());
+        AuthenticatedClient session = QTSurfer.authenticate("ak_explicit", opts());
         assertEquals("jwt-explicit", session.token().getAccessToken());
         assertEquals(1, tokenCalls.get());
         RequestRecord first = requests.get(0);
@@ -121,7 +120,7 @@ class AuthenticatedClientTest {
     void readsApikeyFromEnvWhenNoArgPassed() {
         // End-to-end: a null arg with no env raises QTSAuthError.
         AuthOptions o = opts();
-        QTSAuthError ex = assertThrows(QTSAuthError.class, () -> QTSurfer.auth(null, o));
+        QTSAuthError ex = assertThrows(QTSAuthError.class, () -> QTSurfer.authenticate(null, o));
         assertTrue(ex.getMessage().contains("QTSURFER_APIKEY"));
     }
 
@@ -145,7 +144,7 @@ class AuthenticatedClientTest {
 
     @Test
     void blankApikeyTreatedAsMissing() {
-        QTSAuthError ex = assertThrows(QTSAuthError.class, () -> QTSurfer.auth("   ", opts()));
+        QTSAuthError ex = assertThrows(QTSAuthError.class, () -> QTSurfer.authenticate("   ", opts()));
         assertTrue(ex.getMessage().contains("apikey"));
     }
 
@@ -153,7 +152,7 @@ class AuthenticatedClientTest {
     void mintFailureSurfacesAsQtsAuthError() {
         tokenResponses.add("401:{\"code\":\"invalid_apikey\",\"message\":\"no\"}");
         QTSAuthError ex = assertThrows(QTSAuthError.class,
-                () -> QTSurfer.auth("ak_bad", opts()));
+                () -> QTSurfer.authenticate("ak_bad", opts()));
         assertTrue(ex.getMessage().contains("401"));
     }
 
@@ -167,7 +166,7 @@ class AuthenticatedClientTest {
             @Override public void save(AuthTokenResponse t) { stored.set(t); saves.incrementAndGet(); }
             @Override public void clear() { stored.set(null); }
         };
-        QTSurfer.auth("ak", AuthOptions.builder().baseUrl(baseUrl).store(store).build());
+        QTSurfer.authenticate("ak", AuthOptions.builder().baseUrl(baseUrl).store(store).build());
         assertEquals(1, saves.get());
         assertNotNull(stored.get());
         assertEquals("jwt-stored", stored.get().getAccessToken());
@@ -185,7 +184,7 @@ class AuthenticatedClientTest {
             @Override public void clear() {}
         };
         // No tokenResponses primed; if the SDK mints, the server returns 404.
-        AuthenticatedClient session = QTSurfer.auth("ak",
+        AuthenticatedClient session = QTSurfer.authenticate("ak",
                 AuthOptions.builder().baseUrl(baseUrl).store(store).build());
         assertEquals("jwt-cached", session.token().getAccessToken());
         assertEquals(0, tokenCalls.get());
@@ -198,7 +197,7 @@ class AuthenticatedClientTest {
         tickerStatuses.add(401);
         tickerStatuses.add(200);
 
-        AuthenticatedClient session = QTSurfer.auth("ak", opts());
+        AuthenticatedClient session = QTSurfer.authenticate("ak", opts());
         try (InputStream in = session.tickers("binance", "BTC", "USDT", "2026-01-15T10")) {
             byte[] all = in.readAllBytes();
             assertEquals("LASTRA-OK", new String(all, StandardCharsets.UTF_8));
@@ -222,7 +221,7 @@ class AuthenticatedClientTest {
         tickerStatuses.add(401);
         tickerStatuses.add(401);
 
-        AuthenticatedClient session = QTSurfer.auth("ak", opts());
+        AuthenticatedClient session = QTSurfer.authenticate("ak", opts());
         assertThrows(QTSDownloadError.class,
                 () -> session.tickers("binance", "BTC", "USDT", "2026-01-15T10"));
         assertEquals(2, tokenCalls.get());
@@ -234,7 +233,7 @@ class AuthenticatedClientTest {
         tokenResponses.add(jwt("jwt-1", "free"));
         tickerStatuses.add(404);
 
-        AuthenticatedClient session = QTSurfer.auth("ak", opts());
+        AuthenticatedClient session = QTSurfer.authenticate("ak", opts());
         assertThrows(QTSDownloadError.class,
                 () -> session.tickers("binance", "BTC", "USDT", "2026-01-15T10"));
         // Only the initial mint — no refresh.
@@ -251,7 +250,7 @@ class AuthenticatedClientTest {
             @Override public void save(AuthTokenResponse t) { stored.set(t); }
             @Override public void clear() { stored.set(null); }
         };
-        AuthenticatedClient session = QTSurfer.auth("ak",
+        AuthenticatedClient session = QTSurfer.authenticate("ak",
                 AuthOptions.builder().baseUrl(baseUrl).store(store).build());
         assertNotNull(session.token());
         assertNotNull(stored.get());

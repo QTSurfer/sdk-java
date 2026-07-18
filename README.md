@@ -65,8 +65,8 @@ import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 
 // Reads QTSURFER_APIKEY from env when no argument is passed.
-AuthenticatedClient qts = QTSurfer.auth();
-// Or: AuthenticatedClient qts = QTSurfer.auth("ak_...");
+AuthenticatedClient qts = QTSurfer.authenticate();
+// Or: AuthenticatedClient qts = QTSurfer.authenticate("ak_...");
 
 ResultMap result = qts.backtest(
         BacktestRequest.builder()
@@ -86,7 +86,7 @@ System.out.println("Trades: " + result.getTotalTrades());
 
 | Variable          | Purpose                                              |
 | ----------------- | ---------------------------------------------------- |
-| `QTSURFER_APIKEY` | API key consumed by `QTSurfer.auth()` when no arg is passed |
+| `QTSURFER_APIKEY` | API key consumed by `QTSurfer.authenticate()` when no arg is passed |
 
 ### Pluggable token storage
 
@@ -105,7 +105,7 @@ TokenStore fileStore = new TokenStore() {
     @Override public void clear() { /* delete the file */ }
 };
 
-var qts = QTSurfer.auth(null,
+var qts = QTSurfer.authenticate(null,
         AuthOptions.builder().store(fileStore).build());
 ```
 
@@ -186,7 +186,7 @@ ResultMap result = job.await().join();
 ```
 
 `Backtest` exposes `id()`, `state()`, `progress()` (a `Flow.Publisher<BacktestProgress>`),
-`await()`, and `cancel()` (best-effort server-side `cancelExecution`).
+`await()`, and `cancel()` (best-effort server-side `cancelBacktest`).
 
 ## What `backtest()` does
 
@@ -293,7 +293,7 @@ job.cancel();
 ```
 
 Both stop polling immediately and, if the execute stage has already started
-server-side, best-effort call `cancelExecution` on the backend.
+server-side, best-effort call `cancelBacktest` on the backend.
 
 ## Under the hood
 

@@ -23,9 +23,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Offline integration test for the {@code auth(apikey)} helper.
+ * Offline integration test for the {@code authenticate(apikey)} helper.
  *
- * <p>Drives the helper through the public {@code QTSurfer.auth(...)} entry
+ * <p>Drives the helper through the public {@code QTSurfer.authenticate(...)} entry
  * point against a real {@link HttpServer} on a free port — exercising the
  * full ApiClient stack (JDK {@code HttpClient}, request interceptors,
  * Jackson decoding) without ever leaving the test JVM.
@@ -88,7 +88,7 @@ class AuthHelperIntegrationTest {
                 "{\"access_token\":\"jwt-int\",\"token_type\":\"Bearer\","
                 + "\"expires_in\":3600,\"tier\":\"pro\"}");
 
-        AuthenticatedClient session = QTSurfer.auth("ak_int",
+        AuthenticatedClient session = QTSurfer.authenticate("ak_int",
                 AuthOptions.builder().baseUrl(baseUrl).build());
 
         AuthTokenResponse token = session.token();
@@ -111,7 +111,7 @@ class AuthHelperIntegrationTest {
             @Override public void clear() { saved.clear(); }
         };
 
-        QTSurfer.auth("ak", AuthOptions.builder().baseUrl(baseUrl).store(store).build());
+        QTSurfer.authenticate("ak", AuthOptions.builder().baseUrl(baseUrl).store(store).build());
         assertEquals(1, saved.size());
         assertEquals("jwt-store", saved.get(0).getAccessToken());
     }
@@ -120,7 +120,7 @@ class AuthHelperIntegrationTest {
     void endToEnd_mint401SurfacesAsQtsAuthError() {
         tokenResponses.add("401:{\"code\":\"invalid_apikey\",\"message\":\"x\"}");
         assertThrows(QTSAuthError.class,
-                () -> QTSurfer.auth("ak_bad",
+                () -> QTSurfer.authenticate("ak_bad",
                         AuthOptions.builder().baseUrl(baseUrl).build()));
     }
 }
