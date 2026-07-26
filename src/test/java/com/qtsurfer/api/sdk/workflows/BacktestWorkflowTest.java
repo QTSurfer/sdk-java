@@ -40,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
@@ -114,6 +115,48 @@ class BacktestWorkflowTest {
         verify(backtestingApi).executeBacktest(eq("binance"), eq(DataSourceType.TICKER), execBody.capture());
         assertEquals("prep-1", execBody.getValue().getPrepareJobId());
         assertEquals("strategy-abc", execBody.getValue().getStrategyId());
+    }
+
+    @Test
+    void keepsPollingThroughAnEmpty202AndResolvesOnceTheResultIsReadable() throws Exception {
+        // The API answers 202 with an empty body when a job is known but its result is not
+        // readable yet, so a successful response can legitimately carry no state at all.
+        // Dereferencing getState() in the retry predicate ends the poll instead of continuing it
+        // — the exception is swallowed by the retry policy, so the caller silently receives a
+        // null ResultMap for a backtest that actually completed.
+        when(strategyClient.submit("class S {}")).thenReturn("compile-job-1");
+        when(strategyClient.status("compile-job-1"))
+                .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
+
+        when(backtestingApi.prepareBacktest(eq("binance"), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
+                .thenReturn(new AcceptedJob().jobId("prep-1"));
+        when(backtestingApi.getPrepareStatus("binance", DataSourceType.TICKER, "prep-1"))
+                .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED).size(1).completed(1));
+
+        when(backtestingApi.executeBacktest(eq("binance"), eq(DataSourceType.TICKER), any(ExecuteBacktestRequest.class)))
+                .thenReturn(new AcceptedJob().jobId("exec-202"));
+
+        ResultMap resultMap = new ResultMap()
+                .strategyId("strategy-abc")
+                .instrument("BTC/USDT")
+                .pnlTotal(7.0);
+        when(backtestingApi.getBacktestResult("binance", DataSourceType.TICKER, "exec-202"))
+                .thenReturn(new BacktestJobResult())  // 202: empty body, no state
+                .thenReturn(new BacktestJobResult())
+                .thenReturn(new BacktestJobResult()
+                        .state(new JobState().status(JobState.StatusEnum.COMPLETED).size(1).completed(1))
+                        .results(resultMap));
+
+        BacktestOptions opts = BacktestOptions.builder()
+                .pollInterval(Duration.ofMillis(1))
+                .maxPollInterval(Duration.ofMillis(2))
+                .build();
+
+        ResultMap result = workflow.runFull(REQ, opts).get(10, TimeUnit.SECONDS);
+
+        assertEquals("strategy-abc", result.getStrategyId());
+        assertEquals(7.0, result.getPnlTotal());
+        verify(backtestingApi, atLeast(3)).getBacktestResult("binance", DataSourceType.TICKER, "exec-202");
     }
 
     @Test

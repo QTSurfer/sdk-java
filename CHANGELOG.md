@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed 🐛
+
+- **A `202` on the execute-result poll no longer ends the poll with an empty result.** The API
+  answers `202` with an empty body when a job is known but its result is not readable yet, so a
+  successful response can legitimately carry no `state`. `BacktestWorkflow` dereferenced
+  `getState()` inside the retry predicate, and the resulting `NullPointerException` was swallowed
+  by the retry policy: the predicate simply did not match, the poll stopped, and the caller
+  received a `null` `ResultMap` for a backtest that had actually completed. The status is now read
+  through a null-safe accessor, so an absent state normalizes to "in progress" and the loop asks
+  again under its existing timeout.
+
 ## [0.8.0] — 2026-07-18
 
 ### Changed (BREAKING)
