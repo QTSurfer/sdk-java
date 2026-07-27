@@ -183,9 +183,9 @@ public final class BacktestWorkflow {
                         () -> backtestingApi.getBacktestResult(req.exchangeId(), TICKER, executeJobId),
                         "Execution result request failed",
                         QTSExecutionError::new),
-                r -> StatusNormalizer.normalize(r.getState().getStatus()) == Normalized.IN_PROGRESS);
+                r -> StatusNormalizer.normalize(statusOf(r)) == Normalized.IN_PROGRESS);
 
-        Normalized norm = StatusNormalizer.normalize(finalResult.getState().getStatus());
+        Normalized norm = StatusNormalizer.normalize(statusOf(finalResult));
         if (norm == Normalized.FAILED) {
             throw new QTSExecutionError(statusDetailOrDefault(finalResult.getState().getStatusDetail(), "Execution failed"));
         }
@@ -195,7 +195,7 @@ public final class BacktestWorkflow {
         ResultMap results = finalResult.getResults();
         log.info("Execution result for job {}: state={} instrument={} strategyId={} pnl={} trades={}",
                 executeJobId,
-                finalResult.getState().getStatus(),
+                statusOf(finalResult),
                 results != null ? results.getInstrument() : null,
                 results != null ? results.getStrategyId() : null,
                 results != null ? results.getPnlTotal() : null,
@@ -326,6 +326,26 @@ public final class BacktestWorkflow {
 
     private static String statusDetailOrDefault(String detail, String fallback) {
         return (detail == null || detail.isBlank()) ? fallback : detail;
+    }
+
+    /**
+     * Status of an execute-result response, or {@code null} when it carries no state.
+     *
+     * <p>The API answers {@code 202} with an empty body when a job is known but its result is not
+     * readable yet, so {@code getState()} is legitimately null on a successful response. Reading
+     * the status through this instead of dereferencing directly is what keeps a 202 a poll:
+     * {@link StatusNormalizer#normalize} maps null to {@code IN_PROGRESS}, so the loop asks again
+     * under its existing timeout.
+     *
+     * <p>Dereferencing directly does not fail loudly, which is why this is easy to reintroduce.
+     * The {@code NullPointerException} is raised inside Failsafe's result predicate, where it is
+     * swallowed: the retry simply does not match, the poll <em>ends</em>, and the caller is handed
+     * a null {@code ResultMap} — the same "finished, and I could not find it" trap the 202 exists
+     * to prevent, moved to the client side. Verified by reverting this guard: the regression test
+     * fails with a null result, not with a visible NPE.
+     */
+    private static JobState.StatusEnum statusOf(BacktestJobResult result) {
+        return result == null || result.getState() == null ? null : result.getState().getStatus();
     }
 
     private static Throwable unwrap(Throwable t) {
