@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-07-27
+
 ### Fixed 🐛
 
 - **A `202` on the execute-result poll no longer ends the poll with an empty result.** The API
