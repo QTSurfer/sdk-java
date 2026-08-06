@@ -31,10 +31,12 @@ public final class Strategy {
         return workflow.submitExecution(this, request, options != null ? options : BacktestOptions.defaults());
     }
 
+    /** Equivalent to {@link #backtest(BacktestRequest, BacktestOptions)} with {@link BacktestOptions#defaults()}. */
     public CompletableFuture<Backtest> backtest(BacktestRequest request) {
         return backtest(request, BacktestOptions.defaults());
     }
 
+    /** Compact debug representation including the compiled strategy id. */
     @Override
     public String toString() {
         return "Strategy[" + id + "]";

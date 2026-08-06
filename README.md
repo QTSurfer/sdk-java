@@ -192,7 +192,7 @@ ResultMap result = job.await().join();
 
 Orchestrates the four-step workflow exposed by the raw API:
 
-1. **Compile** the strategy (`POST /strategy` in async mode) and poll `GET /strategy/{jobId}` until completed.
+1. **Compile** the strategy (`POST /strategy`), which answers synchronously with the `strategyId`.
 2. **Prepare** the data range (`POST /backtest/{exchange}/ticker/prepare`) and poll `GET …/prepare/{jobId}` until `Completed`.
 3. **Execute** the backtest (`POST /backtest/{exchange}/ticker/execute`) and poll `GET …/execute/{jobId}` until `Completed`.
 4. Resolve the returned `CompletableFuture` with the `ResultMap` (`pnlTotal`, `totalTrades`, `sharpeRatio`, `signalsUrl`, …).

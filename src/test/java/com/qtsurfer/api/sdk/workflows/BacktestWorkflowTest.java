@@ -15,8 +15,6 @@ import com.qtsurfer.api.sdk.BacktestStage;
 import com.qtsurfer.api.sdk.errors.QTSExecutionError;
 import com.qtsurfer.api.sdk.errors.QTSPreparationError;
 import com.qtsurfer.api.sdk.errors.QTSStrategyCompileError;
-import com.qtsurfer.api.sdk.internal.CompileStatus;
-import com.qtsurfer.api.sdk.internal.StatusNormalizer.Normalized;
 import com.qtsurfer.api.sdk.internal.StrategyCompileClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -77,9 +75,7 @@ class BacktestWorkflowTest {
 
     @Test
     void runsHappyPathAndReturnsResultMap() throws Exception {
-        when(strategyClient.submit("class S {}")).thenReturn("compile-job-1");
-        when(strategyClient.status("compile-job-1"))
-                .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
+        when(strategyClient.compile("class S {}")).thenReturn("strategy-abc");
 
         when(backtestingApi.prepareBacktest(eq("binance"), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
@@ -124,9 +120,7 @@ class BacktestWorkflowTest {
         // Dereferencing getState() in the retry predicate ends the poll instead of continuing it
         // — the exception is swallowed by the retry policy, so the caller silently receives a
         // null ResultMap for a backtest that actually completed.
-        when(strategyClient.submit("class S {}")).thenReturn("compile-job-1");
-        when(strategyClient.status("compile-job-1"))
-                .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
+        when(strategyClient.compile("class S {}")).thenReturn("strategy-abc");
 
         when(backtestingApi.prepareBacktest(eq("binance"), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
@@ -160,20 +154,9 @@ class BacktestWorkflowTest {
     }
 
     @Test
-    void throwsQTSStrategyCompileErrorWhenSubmitFails() {
-        doThrow(new QTSStrategyCompileError("bad source")).when(strategyClient).submit(anyString());
-
-        CompletableFuture<ResultMap> future = workflow.runFull(REQ, fastOpts());
-        ExecutionException ex = assertThrows(ExecutionException.class,
-                () -> future.get(5, TimeUnit.SECONDS));
-        assertInstanceOf(QTSStrategyCompileError.class, ex.getCause());
-    }
-
-    @Test
-    void throwsQTSStrategyCompileErrorWhenCompileStatusIsFailed() throws Exception {
-        when(strategyClient.submit(anyString())).thenReturn("compile-job-1");
-        when(strategyClient.status("compile-job-1"))
-                .thenReturn(new CompileStatus(Normalized.FAILED, null, "syntax error line 4"));
+    void throwsQTSStrategyCompileErrorWhenCompileFails() {
+        doThrow(new QTSStrategyCompileError("Line 1, Column 1: syntax error line 4"))
+                .when(strategyClient).compile(anyString());
 
         CompletableFuture<ResultMap> future = workflow.runFull(REQ, fastOpts());
         ExecutionException ex = assertThrows(ExecutionException.class,
@@ -183,33 +166,8 @@ class BacktestWorkflowTest {
     }
 
     @Test
-    void pollsCompileStatusUntilCompleted() throws Exception {
-        when(strategyClient.submit(anyString())).thenReturn("compile-job-1");
-        when(strategyClient.status("compile-job-1"))
-                .thenReturn(new CompileStatus(Normalized.IN_PROGRESS, null, null))
-                .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
-
-        when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
-                .thenReturn(new AcceptedJob().jobId("prep-1"));
-        when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
-                .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED).size(1).completed(1));
-        when(backtestingApi.executeBacktest(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestRequest.class)))
-                .thenReturn(new AcceptedJob().jobId("exec-1"));
-        when(backtestingApi.getBacktestResult(anyString(), eq(DataSourceType.TICKER), eq("exec-1")))
-                .thenReturn(new BacktestJobResult()
-                        .state(new JobState().status(JobState.StatusEnum.COMPLETED).size(1).completed(1))
-                        .results(new ResultMap().strategyId("strategy-abc")));
-
-        ResultMap result = workflow.runFull(REQ, fastOpts()).get(5, TimeUnit.SECONDS);
-        assertEquals("strategy-abc", result.getStrategyId());
-        verify(strategyClient, atLeastOnce()).status("compile-job-1");
-    }
-
-    @Test
     void throwsQTSPreparationErrorWhenPrepareStatusIsFailed() throws Exception {
-        when(strategyClient.submit(anyString())).thenReturn("compile-job-1");
-        when(strategyClient.status("compile-job-1"))
-                .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
+        when(strategyClient.compile(anyString())).thenReturn("strategy-abc");
         when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
         when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
@@ -226,9 +184,7 @@ class BacktestWorkflowTest {
 
     @Test
     void throwsQTSExecutionErrorWhenExecutionStateIsFailed() throws Exception {
-        when(strategyClient.submit(anyString())).thenReturn("compile-job-1");
-        when(strategyClient.status("compile-job-1"))
-                .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
+        when(strategyClient.compile(anyString())).thenReturn("strategy-abc");
         when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
         when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
@@ -254,9 +210,7 @@ class BacktestWorkflowTest {
     @org.junit.jupiter.api.Disabled("Moved to DomainObjectsTest — cancellation is on Backtest, not on the runFull shortcut")
     @Test
     void cancelTriggersServerSideCancelBacktestWhenExecuteStageReached() throws Exception {
-        when(strategyClient.submit(anyString())).thenReturn("compile-job-1");
-        when(strategyClient.status("compile-job-1"))
-                .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
+        when(strategyClient.compile(anyString())).thenReturn("strategy-abc");
         when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
         when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))

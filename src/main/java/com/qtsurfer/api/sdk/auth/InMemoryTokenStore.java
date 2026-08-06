@@ -13,16 +13,22 @@ public final class InMemoryTokenStore implements TokenStore {
 
     private final AtomicReference<AuthTokenResponse> ref = new AtomicReference<>();
 
+    /**
+     * Returns whatever was last written to the single in-memory slot —
+     * {@code null} before the first {@link #save} or after {@link #clear()}.
+     */
     @Override
     public AuthTokenResponse load() {
         return ref.get();
     }
 
+    /** Overwrites the single slot; passing {@code null} has the same effect as {@link #clear()}. */
     @Override
     public void save(AuthTokenResponse token) {
         ref.set(token);
     }
 
+    /** Drops the in-memory token; nothing here survives past this call or JVM exit. */
     @Override
     public void clear() {
         ref.set(null);

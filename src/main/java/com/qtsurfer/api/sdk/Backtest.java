@@ -30,6 +30,7 @@ public final class Backtest {
     private final AtomicReference<State> state;
     private final Runnable cancelHook;
 
+    /** Internal constructor used by the SDK workflow; not part of the public contract. */
     public Backtest(
             String id,
             Strategy strategy,
@@ -48,8 +49,10 @@ public final class Backtest {
     /** Server-side execute jobId. */
     public String id() { return id; }
 
+    /** The {@link Strategy} this backtest was run against. */
     public Strategy strategy() { return strategy; }
 
+    /** Local snapshot of the execution lifecycle; does not itself contact the server. */
     public State state() { return state.get(); }
 
     /** Reactive-streams feed of progress events; terminates when the job reaches a terminal state. */
@@ -72,6 +75,7 @@ public final class Backtest {
         return true;
     }
 
+    /** Compact debug representation including the job id and current state. */
     @Override
     public String toString() {
         return "Backtest[" + id + ", state=" + state.get() + "]";

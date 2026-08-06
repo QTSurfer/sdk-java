@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-08-06
+
+### Changed 🔄
+
+- **Compiling a strategy is now a single request.** The API compiles synchronously and answers with
+  the `strategyId`, so the SDK no longer submits with `X-Compile-Async` and then polls a compile
+  job to completion. `QTSurfer.compile(...)` and `BacktestWorkflow.compile(...)` keep their
+  signatures and their behaviour from a caller's point of view — the same handle comes back — but
+  they now resolve in one round trip instead of one plus a poll loop, and a compile error surfaces
+  immediately rather than on a later poll.
+- `StrategyCompileClient` (internal) collapses to a single `compile(String source)` returning the
+  `strategyId`; `submit` and `status` are gone, as is the `CompileStatus` record they returned.
+  Callers outside this library are not expected to touch `com.qtsurfer.api.sdk.internal`, but the
+  types were reachable, so this is called out rather than treated as invisible.
+- Bumped `com.qtsurfer:api-client` to `0.7.0` (OpenAPI spec `0.102.0`).
+
+### Added ✨
+
+- A `429` from the compile endpoint is reported as its own condition — the platform is holding too
+  many compilations at once and the source was never judged — instead of being worded as a
+  compilation failure like every other `4xx` on that endpoint.
+
 ## [0.8.1] — 2026-07-27
 
 ### Fixed 🐛

@@ -3,7 +3,6 @@ package com.qtsurfer.api.sdk.internal;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.sdk.errors.QTSStrategyCompileError;
-import com.qtsurfer.api.sdk.internal.StatusNormalizer.Normalized;
 
 import java.io.IOException;
 import java.net.URI;
@@ -15,11 +14,10 @@ import java.util.Objects;
  * Default {@link StrategyCompileClient} backed by the api-client's shared
  * {@link ApiClient} (HttpClient, ObjectMapper, base URI, request interceptor).
  *
- * <p>The SDK bypasses the generated {@code StrategyApi} for both endpoints
- * because the strict enum deserialization in the generated response types does
- * not tolerate the wire casing the backend currently uses (e.g. {@code "completed"}).
- * Reading the JSON body directly and normalizing via {@link StatusNormalizer}
- * keeps the workflow stable across that drift.</p>
+ * <p>The SDK bypasses the generated {@code StrategyApi} and reads the JSON body
+ * directly, so a wire-casing drift on this response never breaks strict enum
+ * deserialization in generated types — the same defensive posture applied to
+ * the rest of the workflow's status handling.</p>
  */
 public final class HttpStrategyCompileClient implements StrategyCompileClient {
 
@@ -30,40 +28,21 @@ public final class HttpStrategyCompileClient implements StrategyCompileClient {
     }
 
     @Override
-    public String submit(String source) {
+    public String compile(String source) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(apiClient.getBaseUri() + "/strategy"))
                 .header("Content-Type", "text/plain")
-                .header("X-Compile-Async", "true")
                 .POST(HttpRequest.BodyPublishers.ofString(source));
         applyInterceptor(builder);
 
-        HttpResponse<String> response = send(builder, "Strategy submission failed");
-        checkStatus(response, "Strategy submission failed");
+        HttpResponse<String> response = send(builder, "Strategy compilation failed");
+        checkStatus(response, "Strategy compilation failed");
 
-        JsonNode json = parse(response.body(), "Invalid compile submit response");
-        if (!json.hasNonNull("jobId")) {
-            throw new QTSStrategyCompileError("Compile submit response missing jobId");
+        JsonNode json = parse(response.body(), "Invalid compile response");
+        if (!json.hasNonNull("strategyId")) {
+            throw new QTSStrategyCompileError("Compile response missing strategyId");
         }
-        return json.get("jobId").asText();
-    }
-
-    @Override
-    public CompileStatus status(String jobId) {
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(apiClient.getBaseUri() + "/strategy/" + jobId))
-                .GET();
-        applyInterceptor(builder);
-
-        HttpResponse<String> response = send(builder, "Compile status request failed");
-        checkStatus(response, "Compile status request failed");
-
-        JsonNode json = parse(response.body(), "Invalid compile status response");
-        Normalized normalized = StatusNormalizer.normalize(
-                json.hasNonNull("status") ? json.get("status").asText() : null);
-        String strategyId = json.hasNonNull("strategyId") ? json.get("strategyId").asText() : null;
-        String statusDetail = json.hasNonNull("statusDetail") ? json.get("statusDetail").asText() : null;
-        return new CompileStatus(normalized, strategyId, statusDetail);
+        return json.get("strategyId").asText();
     }
 
     private void applyInterceptor(HttpRequest.Builder builder) {
@@ -84,12 +63,19 @@ public final class HttpStrategyCompileClient implements StrategyCompileClient {
     }
 
     private static void checkStatus(HttpResponse<String> response, String context) {
-        if (response.statusCode() >= 400) {
-            String body = response.body();
-            throw new QTSStrategyCompileError(
-                    context + ": HTTP " + response.statusCode()
-                            + (body != null && !body.isBlank() ? " — " + body : ""));
+        int status = response.statusCode();
+        if (status < 400) return;
+
+        String body = response.body();
+        String detail = ": HTTP " + status + (body != null && !body.isBlank() ? " — " + body : "");
+
+        // A 429 says the platform is holding too many compilations at once — the source was
+        // never judged. Reported under its own wording so it is not read as a compiler
+        // diagnostic, which is what every other 4xx on this endpoint means.
+        if (status == 429) {
+            throw new QTSStrategyCompileError("Strategy was not compiled, too many compilations in flight; retry later" + detail);
         }
+        throw new QTSStrategyCompileError(context + detail);
     }
 
     private JsonNode parse(String body, String context) {

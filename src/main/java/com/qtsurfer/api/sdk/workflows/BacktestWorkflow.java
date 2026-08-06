@@ -25,7 +25,6 @@ import com.qtsurfer.api.sdk.errors.QTSExecutionError;
 import com.qtsurfer.api.sdk.errors.QTSPreparationError;
 import com.qtsurfer.api.sdk.errors.QTSStrategyCompileError;
 import com.qtsurfer.api.sdk.errors.QTSTimeoutError;
-import com.qtsurfer.api.sdk.internal.CompileStatus;
 import com.qtsurfer.api.sdk.internal.Policies;
 import com.qtsurfer.api.sdk.internal.StatusNormalizer;
 import com.qtsurfer.api.sdk.internal.StatusNormalizer.Normalized;
@@ -66,12 +65,12 @@ public final class BacktestWorkflow {
         this.executor = Objects.requireNonNull(executor, "executor");
     }
 
-    /** Async compile: submit with X-Compile-Async then poll until a strategyId is available. */
+    /** Compile a strategy (synchronous on the wire) and return its handle. */
     public CompletableFuture<Strategy> compile(String source, BacktestOptions opts) {
         BacktestOptions safeOpts = opts != null ? opts : BacktestOptions.defaults();
         return CompletableFuture.supplyAsync(() -> {
             emit(safeOpts.onProgress(), new BacktestProgress(BacktestStage.COMPILING, null));
-            String strategyId = compileStrategy(source, safeOpts);
+            String strategyId = compileStrategy(source);
             return new Strategy(strategyId, this);
         }, executor);
     }
@@ -203,29 +202,12 @@ public final class BacktestWorkflow {
         return results;
     }
 
-    private String compileStrategy(String source, BacktestOptions opts) {
-        String compileJobId = strategyClient.submit(source);
-        if (compileJobId == null || compileJobId.isBlank()) {
-            throw new QTSStrategyCompileError("Compile submit response missing jobId");
+    private String compileStrategy(String source) {
+        String strategyId = strategyClient.compile(source);
+        if (strategyId == null || strategyId.isBlank()) {
+            throw new QTSStrategyCompileError("Compile response missing strategyId");
         }
-
-        CompileStatus status = poll(
-                BacktestStage.COMPILING,
-                opts,
-                null,
-                () -> strategyClient.status(compileJobId),
-                r -> r.status() == Normalized.IN_PROGRESS);
-
-        if (status.status() == Normalized.FAILED) {
-            throw new QTSStrategyCompileError(statusDetailOrDefault(status.statusDetail(), "Strategy compilation failed"));
-        }
-        if (status.status() == Normalized.ABORTED) {
-            throw new QTSCanceledError("Strategy compilation aborted");
-        }
-        if (status.strategyId() == null || status.strategyId().isBlank()) {
-            throw new QTSStrategyCompileError("Compile completed without a strategyId");
-        }
-        return status.strategyId();
+        return strategyId;
     }
 
     private String prepareData(BacktestRequest req, BacktestOptions opts) {

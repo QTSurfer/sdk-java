@@ -15,8 +15,6 @@ import com.qtsurfer.api.sdk.BacktestProgress;
 import com.qtsurfer.api.sdk.BacktestRequest;
 import com.qtsurfer.api.sdk.BacktestStage;
 import com.qtsurfer.api.sdk.Strategy;
-import com.qtsurfer.api.sdk.internal.CompileStatus;
-import com.qtsurfer.api.sdk.internal.StatusNormalizer.Normalized;
 import com.qtsurfer.api.sdk.internal.StrategyCompileClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -72,9 +70,7 @@ class DomainObjectsTest {
 
     @Test
     void compileReturnsReusableStrategyHandle() throws Exception {
-        when(strategyClient.submit(anyString())).thenReturn("compile-job-1");
-        when(strategyClient.status("compile-job-1"))
-                .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
+        when(strategyClient.compile(anyString())).thenReturn("strategy-abc");
 
         Strategy s = workflow.compile("class S {}", fastOpts()).get(5, TimeUnit.SECONDS);
         assertEquals("strategy-abc", s.id());
@@ -82,9 +78,7 @@ class DomainObjectsTest {
 
     @Test
     void strategyBacktestReturnsJobAndAwaitCompletes() throws Exception {
-        when(strategyClient.submit(anyString())).thenReturn("compile-job-1");
-        when(strategyClient.status("compile-job-1"))
-                .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
+        when(strategyClient.compile(anyString())).thenReturn("strategy-abc");
         when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
         when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
@@ -108,9 +102,7 @@ class DomainObjectsTest {
 
     @Test
     void jobProgressPublisherEmitsExecutingEvents() throws Exception {
-        when(strategyClient.submit(anyString())).thenReturn("compile-job-1");
-        when(strategyClient.status("compile-job-1"))
-                .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
+        when(strategyClient.compile(anyString())).thenReturn("strategy-abc");
         when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
         when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
@@ -155,9 +147,7 @@ class DomainObjectsTest {
 
     @Test
     void cancelTransitionsJobStateAndFiresServerCancel() throws Exception {
-        when(strategyClient.submit(anyString())).thenReturn("compile-job-1");
-        when(strategyClient.status("compile-job-1"))
-                .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
+        when(strategyClient.compile(anyString())).thenReturn("strategy-abc");
         when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
         when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
@@ -199,9 +189,7 @@ class DomainObjectsTest {
 
     @Test
     void runFullShortcutDelegatesToDecomposedApi() throws Exception {
-        when(strategyClient.submit(anyString())).thenReturn("compile-job-1");
-        when(strategyClient.status("compile-job-1"))
-                .thenReturn(new CompileStatus(Normalized.COMPLETED, "strategy-abc", null));
+        when(strategyClient.compile(anyString())).thenReturn("strategy-abc");
         when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
                 .thenReturn(new AcceptedJob().jobId("prep-1"));
         when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))

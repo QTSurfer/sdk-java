@@ -57,6 +57,7 @@ public final class QTSurfer {
         this.exchangeApi = exchangeApi;
     }
 
+    /** Configuration this client was built with. */
     public QTSurferOptions options() { return options; }
 
     /** Compile a strategy source. Resolves with a {@link Strategy} handle you can reuse. */
@@ -64,6 +65,22 @@ public final class QTSurfer {
         return compile(source, BacktestOptions.defaults());
     }
 
+    /**
+     * Compile strategy source into a reusable {@link Strategy} handle.
+     *
+     * <p>Issues a single synchronous HTTP request; the compile endpoint
+     * returns the {@code strategyId} directly, so a failing compile
+     * surfaces immediately as
+     * {@link com.qtsurfer.api.sdk.errors.QTSStrategyCompileError} rather
+     * than on a later poll. A {@code 429} means the platform was holding
+     * too many compilations and the source was never judged, so it is safe
+     * to retry; any other error status reflects a judgment on the
+     * submitted code and will not succeed by retrying alone.
+     *
+     * @param options tuning knobs; only {@code onProgress} is used here (a
+     *                single {@code COMPILING} event) — polling and timeout
+     *                settings do not apply to this stage
+     */
     public CompletableFuture<Strategy> compile(String source, BacktestOptions options) {
         Objects.requireNonNull(source, "source");
         return backtestWorkflow.compile(source, options);
@@ -75,6 +92,11 @@ public final class QTSurfer {
         return compile(request.strategy(), BacktestOptions.defaults());
     }
 
+    /**
+     * Convenience overload that compiles {@link BacktestRequest#strategy()}
+     * with the given options, ignoring every other field of the request.
+     * See {@link #compile(String, BacktestOptions)}.
+     */
     public CompletableFuture<Strategy> compile(BacktestRequest request, BacktestOptions options) {
         Objects.requireNonNull(request, "request");
         return compile(request.strategy(), options);
@@ -89,6 +111,19 @@ public final class QTSurfer {
         return backtest(request, BacktestOptions.defaults());
     }
 
+    /**
+     * Run the full compile → prepare → execute pipeline and resolve once
+     * the run reaches a terminal state (completed, failed, or canceled).
+     * The returned future completes exceptionally with
+     * {@link com.qtsurfer.api.sdk.errors.QTSStrategyCompileError} if
+     * compilation fails, {@link com.qtsurfer.api.sdk.errors.QTSPreparationError}
+     * if data preparation fails, {@link com.qtsurfer.api.sdk.errors.QTSExecutionError}
+     * if execution fails, or {@link com.qtsurfer.api.sdk.errors.QTSTimeoutError}
+     * if a stage exceeds its configured timeout.
+     *
+     * @param options tuning knobs (poll interval, timeout, progress
+     *                callback) applied to every stage of the pipeline
+     */
     public CompletableFuture<ResultMap> backtest(BacktestRequest request, BacktestOptions options) {
         Objects.requireNonNull(request, "request");
         return backtestWorkflow.runFull(request, options);
@@ -141,6 +176,14 @@ public final class QTSurfer {
         return tickers(exchangeId, base, quote, hour, DownloadFormat.LASTRA);
     }
 
+    /**
+     * Download one hour of raw tickers for an instrument as a streaming
+     * {@link InputStream}, requesting the given {@link DownloadFormat}.
+     * The 4-argument overload delegates here with
+     * {@link DownloadFormat#LASTRA}.
+     *
+     * @throws QTSDownloadError on HTTP 4xx/5xx or transport failure
+     */
     public InputStream tickers(String exchangeId, String base, String quote, String hour, DownloadFormat format) {
         Objects.requireNonNull(format, "format");
         try {
@@ -161,6 +204,14 @@ public final class QTSurfer {
         return klines(exchangeId, base, quote, hour, DownloadFormat.LASTRA);
     }
 
+    /**
+     * Download one hour of klines for an instrument as a streaming
+     * {@link InputStream}, requesting the given {@link DownloadFormat}.
+     * See {@link #tickers(String, String, String, String, DownloadFormat)}
+     * for stream-closing semantics.
+     *
+     * @throws QTSDownloadError on HTTP 4xx/5xx or transport failure
+     */
     public InputStream klines(String exchangeId, String base, String quote, String hour, DownloadFormat format) {
         Objects.requireNonNull(format, "format");
         try {
@@ -204,6 +255,7 @@ public final class QTSurfer {
         return AuthenticatedClient.authenticate();
     }
 
+    /** Start building a {@link QTSurfer} client via the fluent {@link Builder}. */
     public static Builder builder() { return new Builder(); }
 
     public static final class Builder {

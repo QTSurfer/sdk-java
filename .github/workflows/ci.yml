@@ -76,3 +76,32 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
             --notes-file /tmp/release-notes.md
+
+  docs:
+    needs: unit
+    runs-on: ubuntu-latest
+    # Only tagged versions get published, so the site always describes a release
+    # rather than whatever main happens to be.
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+      - name: Generate javadoc
+        run: mvn -B javadoc:javadoc
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: target/site/apidocs
+      - id: deploy
+        uses: actions/deploy-pages@v4
