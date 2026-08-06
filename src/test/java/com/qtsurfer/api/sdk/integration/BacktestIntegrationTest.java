@@ -96,9 +96,9 @@ class BacktestIntegrationTest {
 
         ResultMap result = qts.backtest(req, opts).get(5, TimeUnit.MINUTES);
 
-        // Log full result before any assertion so CI always shows the response
-        log.info("Result: {}", result);
-        log.info("  instrument={} strategyId={} pnl={} trades={} winRate={} sharpe={} cagr={} maxDD={}%",
+        // Summary only, not result.toString() — equityCurve holds one point per poll
+        // interval, and a full day's window dumps thousands of lines into the CI log.
+        log.info("Result: instrument={} strategyId={} pnl={} trades={} winRate={} sharpe={} cagr={} maxDD={}%",
                 result.getInstrument(), result.getStrategyId(),
                 result.getPnlTotal(), result.getTotalTrades(),
                 result.getWinRate(), result.getSharpeRatio(),
