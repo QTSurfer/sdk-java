@@ -3,6 +3,7 @@
 <p align="center">
   <a href="https://github.com/QTSurfer/sdk-java/actions/workflows/ci.yml"><img src="https://github.com/QTSurfer/sdk-java/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://jitpack.io/#com.qtsurfer/sdk-java"><img src="https://jitpack.io/v/com.qtsurfer/sdk-java.svg" alt="JitPack"></a>
+  <a href="https://qtsurfer.github.io/sdk-java/"><img src="https://img.shields.io/badge/docs-javadoc-blue" alt="Javadoc"></a>
   <img src="https://img.shields.io/badge/JDK-17%2B-blue?logo=openjdk&logoColor=white" alt="JDK 17+">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
 </p>
