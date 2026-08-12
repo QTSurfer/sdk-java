@@ -20,6 +20,13 @@ public final class StatusNormalizer {
             // the caller reads the reported coverage ratio to decide what to do with a
             // partially-covered window (spec 0.98.0 dropped the old Partial status).
             case "completed" -> Normalized.COMPLETED;
+            // A sweep that finishes with at least one shard dead reports `partial`, and that is
+            // terminal: the rows it did produce are readable and nothing more is coming. Only the
+            // sweep statuses use this value, so mapping it here does not reach the prepare or
+            // execute paths. It normalizes to COMPLETED because this enum drives the poll loop —
+            // stop asking, hand the response back — and the caller reads `partial` off the
+            // response itself, where the distinction is not lost.
+            case "partial" -> Normalized.COMPLETED;
             case "failed" -> Normalized.FAILED;
             case "aborted", "cancelled", "canceled" -> Normalized.ABORTED;
             default -> Normalized.IN_PROGRESS;

@@ -1,15 +1,11 @@
 package com.qtsurfer.api.sdk.workflows;
 
-import dev.failsafe.FailsafeExecutor;
-import dev.failsafe.TimeoutExceededException;
 import com.qtsurfer.api.client.api.BacktestingApi;
-import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.AcceptedJob;
 import com.qtsurfer.api.client.model.BacktestJobResult;
 import com.qtsurfer.api.client.model.DataSourceType;
 import com.qtsurfer.api.client.model.ExecuteBacktestRequest;
 import com.qtsurfer.api.client.model.JobState;
-import com.qtsurfer.api.client.model.PrepareJobState;
 import com.qtsurfer.api.client.model.PrepareRequest;
 import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.sdk.Backtest;
@@ -22,10 +18,10 @@ import com.qtsurfer.api.sdk.Strategy;
 import com.qtsurfer.api.sdk.errors.QTSCanceledError;
 import com.qtsurfer.api.sdk.errors.QTSError;
 import com.qtsurfer.api.sdk.errors.QTSExecutionError;
-import com.qtsurfer.api.sdk.errors.QTSPreparationError;
 import com.qtsurfer.api.sdk.errors.QTSStrategyCompileError;
-import com.qtsurfer.api.sdk.errors.QTSTimeoutError;
-import com.qtsurfer.api.sdk.internal.Policies;
+import com.qtsurfer.api.sdk.internal.ApiCalls;
+import com.qtsurfer.api.sdk.internal.Polling;
+import com.qtsurfer.api.sdk.internal.Preparation;
 import com.qtsurfer.api.sdk.internal.StatusNormalizer;
 import com.qtsurfer.api.sdk.internal.StatusNormalizer.Normalized;
 import com.qtsurfer.api.sdk.internal.StrategyCompileClient;
@@ -33,7 +29,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.SubmissionPublisher;
@@ -215,36 +210,14 @@ public final class BacktestWorkflow {
                 .instrument(req.instrument())
                 .from(req.from())
                 .to(req.to());
-        AcceptedJob accepted = call(
-                () -> backtestingApi.prepareBacktest(req.exchangeId(), TICKER, body),
-                "Prepare submission failed",
-                QTSPreparationError::new);
-        if (accepted == null || accepted.getJobId() == null) {
-            throw new QTSPreparationError("Missing jobId in prepare response");
-        }
-        String prepareJobId = accepted.getJobId();
-
-        PrepareJobState state = poll(
-                BacktestStage.PREPARING,
-                opts,
+        return Preparation.prepare(
+                backtestingApi, req.exchangeId(), TICKER, body,
+                opts.pollInterval(), opts.maxPollInterval(), opts.timeout(),
                 percent -> emit(opts.onProgress(), new BacktestProgress(BacktestStage.PREPARING, percent)),
-                () -> call(
-                        () -> backtestingApi.getPrepareStatus(req.exchangeId(), TICKER, prepareJobId),
-                        "Preparation status request failed",
-                        QTSPreparationError::new),
-                r -> StatusNormalizer.normalize(r.getStatus()) == Normalized.IN_PROGRESS);
-
-        Normalized norm = StatusNormalizer.normalize(state.getStatus());
-        if (norm == Normalized.FAILED) {
-            throw new QTSPreparationError(statusDetailOrDefault(state.getStatusDetail(), "Data preparation failed"));
-        }
-        if (norm == Normalized.ABORTED) {
-            throw new QTSCanceledError("Data preparation aborted");
-        }
-        // Surface the backend's coverage ratio for the prepared window (spec 0.98.0) on the
-        // final PREPARING event, so callers can react to a partially-covered range.
-        emit(opts.onProgress(), new BacktestProgress(BacktestStage.PREPARING, 100.0, state.getCoverageRatio()));
-        return prepareJobId;
+                // Surface the backend's coverage ratio for the prepared window (spec 0.98.0) on the
+                // final PREPARING event, so callers can react to a partially-covered range.
+                state -> emit(opts.onProgress(),
+                        new BacktestProgress(BacktestStage.PREPARING, 100.0, state.getCoverageRatio())));
     }
 
     private <T> T poll(
@@ -254,47 +227,23 @@ public final class BacktestWorkflow {
             Supplier<T> fetch,
             Predicate<T> retryWhile) {
 
-        FailsafeExecutor<T> failsafe = Policies.stagePoller(
-                opts.pollInterval(), opts.maxPollInterval(), opts.timeout(), retryWhile);
-
-        Supplier<T> wrapped = () -> {
-            if (Thread.currentThread().isInterrupted()) {
-                throw new QTSCanceledError("Workflow aborted");
-            }
-            T result = fetch.get();
-            if (onPercent != null) {
-                Double percent = extractPercent(result);
-                if (percent != null) onPercent.accept(percent);
-            }
-            return result;
-        };
-
-        try {
-            return failsafe.get(wrapped::get);
-        } catch (TimeoutExceededException ex) {
-            throw new QTSTimeoutError("Stage " + stage + " exceeded " + opts.timeout(), ex);
-        } catch (CancellationException | dev.failsafe.FailsafeException ex) {
-            if (Thread.currentThread().isInterrupted()) {
-                throw new QTSCanceledError("Workflow aborted", ex);
-            }
-            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-            if (cause instanceof QTSError qts) throw qts;
-            throw new QTSError("Poll failed: " + cause.getMessage(), cause);
-        }
+        return Polling.poll(
+                stage.toString(),
+                opts.pollInterval(), opts.maxPollInterval(), opts.timeout(),
+                fetch,
+                retryWhile,
+                result -> {
+                    if (onPercent == null) return;
+                    Double percent = extractPercent(result);
+                    if (percent != null) onPercent.accept(percent);
+                });
     }
 
     private static Double extractPercent(Object result) {
-        if (result instanceof JobState js) return computePercent(js.getSize(), js.getCompleted());
-        if (result instanceof PrepareJobState pjs) return computePercent(pjs.getSize(), pjs.getCompleted());
         if (result instanceof BacktestJobResult bjr && bjr.getState() != null) {
-            return computePercent(bjr.getState().getSize(), bjr.getState().getCompleted());
+            return Polling.percent(bjr.getState().getSize(), bjr.getState().getCompleted());
         }
         return null;
-    }
-
-    private static Double computePercent(Integer size, Integer completed) {
-        if (size == null || completed == null || size <= 0) return null;
-        return (completed.doubleValue() / size) * 100.0;
     }
 
     private static void emit(Consumer<BacktestProgress> sink, BacktestProgress p) {
@@ -337,26 +286,10 @@ public final class BacktestWorkflow {
         return t;
     }
 
-    @FunctionalInterface
-    private interface ApiCall<T> {
-        T invoke() throws ApiException;
-    }
-
     private static <T, E extends QTSError> T call(
-            ApiCall<T> call,
+            ApiCalls.ApiCall<T> call,
             String message,
             java.util.function.BiFunction<String, Throwable, E> errorCtor) {
-        try {
-            return call.invoke();
-        } catch (ApiException e) {
-            throw errorCtor.apply(message + ": " + describeApiException(e), e);
-        }
-    }
-
-    private static String describeApiException(ApiException e) {
-        if (e.getResponseBody() != null && !e.getResponseBody().isBlank()) {
-            return "HTTP " + e.getCode() + " — " + e.getResponseBody();
-        }
-        return "HTTP " + e.getCode();
+        return ApiCalls.call(call, message, errorCtor);
     }
 }

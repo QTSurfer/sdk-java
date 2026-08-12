@@ -17,6 +17,7 @@ import com.qtsurfer.api.sdk.errors.QTSError;
 import com.qtsurfer.api.sdk.internal.HttpStrategyCompileClient;
 import com.qtsurfer.api.sdk.internal.ValidationOutcomes;
 import com.qtsurfer.api.sdk.workflows.BacktestWorkflow;
+import com.qtsurfer.api.sdk.workflows.SweepWorkflow;
 
 import java.io.InputStream;
 import java.util.List;
@@ -43,21 +44,27 @@ import java.util.concurrent.ForkJoinPool;
  * Backtest job = strategy.backtest(request, options).join();
  * job.progress().subscribe( ... );
  * ResultMap result = job.await().join();
+ *
+ * // Or sweep a parameter grid instead of running one configuration:
+ * Sweep sweep = qts.sweep(sweepRequest).join();
+ * ExecuteSweepResult leaderboard = sweep.await().join();
  * }</pre>
  */
 public final class QTSurfer {
 
     private final QTSurferOptions options;
     private final BacktestWorkflow backtestWorkflow;
+    private final SweepWorkflow sweepWorkflow;
     private final ExchangeBinaryDownloads downloads;
     private final ExchangeApi exchangeApi;
     private final StrategyApi strategyApi;
 
     private QTSurfer(QTSurferOptions options, BacktestWorkflow backtestWorkflow,
-                     ExchangeBinaryDownloads downloads, ExchangeApi exchangeApi,
-                     StrategyApi strategyApi) {
+                     SweepWorkflow sweepWorkflow, ExchangeBinaryDownloads downloads,
+                     ExchangeApi exchangeApi, StrategyApi strategyApi) {
         this.options = options;
         this.backtestWorkflow = backtestWorkflow;
+        this.sweepWorkflow = sweepWorkflow;
         this.downloads = downloads;
         this.exchangeApi = exchangeApi;
         this.strategyApi = strategyApi;
@@ -237,6 +244,56 @@ public final class QTSurfer {
     }
 
     /**
+     * Equivalent to {@link #sweep(SweepRequest, SweepOptions)} with
+     * {@link SweepOptions#defaults()}.
+     *
+     * @param request the grid, the instrument, and the window
+     * @return the handle, once the platform has accepted the sweep
+     */
+    public CompletableFuture<Sweep> sweep(SweepRequest request) {
+        return sweep(request, SweepOptions.defaults());
+    }
+
+    /**
+     * Run the full compile → prepare → executeSweep pipeline and resolve once
+     * the platform has accepted the sweep, handing back a {@link Sweep} that
+     * keeps polling the leaderboard in the background.
+     *
+     * <p>The whole sweep is one call because the execute-sweep endpoint is
+     * addressed by the id of an already-prepared dataset: exposing the stages
+     * separately would hand dataset lifecycle to the caller and buy nothing.
+     * Preparing is idempotent, so sweeping the same window twice prepares it
+     * once.
+     *
+     * <p>The returned future completes exceptionally with
+     * {@link com.qtsurfer.api.sdk.errors.QTSStrategyCompileError} if
+     * compilation fails,
+     * {@link com.qtsurfer.api.sdk.errors.QTSPreparationError} if data
+     * preparation fails,
+     * {@link com.qtsurfer.api.sdk.errors.QTSExecutionError} if the platform
+     * rejects the sweep — an expanded grid over the server limit, or a
+     * walk-forward request whose fold count multiplies past the sweep budget,
+     * both answer {@code 400} — or
+     * {@link com.qtsurfer.api.sdk.errors.QTSTimeoutError} if a stage exceeds
+     * its configured timeout.
+     *
+     * <p>What the sweep <em>found</em> arrives through {@link Sweep#await()},
+     * which is also where the semantics of the leaderboard are documented.
+     * Acceptance already answers three things worth reading before any result
+     * exists — the effective seed, whether this submission enqueued anything,
+     * and whether this is a walk-forward sweep — see {@link Sweep#accepted()}.
+     *
+     * @param request the grid, the instrument, and the window
+     * @param options tuning knobs (poll interval, timeout, progress callback,
+     *                leaderboard ordering) applied to every stage of the pipeline
+     * @return the handle, once the platform has accepted the sweep
+     */
+    public CompletableFuture<Sweep> sweep(SweepRequest request, SweepOptions options) {
+        Objects.requireNonNull(request, "request");
+        return sweepWorkflow.submit(request, options);
+    }
+
+    /**
      * List available exchanges on the platform.
      *
      * @throws QTSError on HTTP 4xx/5xx or transport failure
@@ -365,8 +422,9 @@ public final class QTSurfer {
     /**
      * One-call setup: exchange an API key for a short-lived JWT and return
      * an {@link AuthenticatedClient} that mirrors this SDK's surface
-     * (compile / validateStrategy / strategyState / backtest / exchanges /
-     * instruments / tickers / klines) with automatic refresh-on-401.
+     * (compile / validateStrategy / strategyState / backtest / sweep /
+     * exchanges / instruments / tickers / klines) with automatic
+     * refresh-on-401.
      *
      * <p>If {@code apikey} is {@code null} or blank, the value is read from
      * the {@code QTSURFER_APIKEY} environment variable.
@@ -410,9 +468,10 @@ public final class QTSurfer {
             }
             BacktestingApi backtestingApi = new BacktestingApi(apiClient);
             ExecutorService exec = opts.executor() != null ? opts.executor() : ForkJoinPool.commonPool();
-            BacktestWorkflow workflow = new BacktestWorkflow(
-                    new HttpStrategyCompileClient(apiClient), backtestingApi, exec);
-            return new QTSurfer(opts, workflow, new ExchangeBinaryDownloads(apiClient),
+            HttpStrategyCompileClient compileClient = new HttpStrategyCompileClient(apiClient);
+            BacktestWorkflow workflow = new BacktestWorkflow(compileClient, backtestingApi, exec);
+            SweepWorkflow sweeps = new SweepWorkflow(compileClient, backtestingApi, exec);
+            return new QTSurfer(opts, workflow, sweeps, new ExchangeBinaryDownloads(apiClient),
                     new ExchangeApi(apiClient), new StrategyApi(apiClient));
         }
     }

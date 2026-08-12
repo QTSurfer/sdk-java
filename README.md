@@ -272,6 +272,143 @@ superseded by recompilation: when `compiledAt` is later than `validatedAt`, the 
 describes bytecode that is no longer what would run — call `validateStrategy` again. HTTP errors
 surface as `QTSError`; a `404` means only that no such strategy is registered for you.
 
+## Parameter sweeps
+
+Run the same strategy once per parameter vector over one prepared window, and read the
+leaderboard. One call absorbs the same stages as `backtest()` — compile → prepare → submit —
+because the sweep endpoint is addressed by the id of an already-prepared dataset; preparing is
+idempotent, so sweeping the same window twice prepares it once.
+
+```java
+import com.qtsurfer.api.sdk.*;
+import com.qtsurfer.api.client.model.ExecuteSweepResult;
+
+SweepRequest request = SweepRequest.builder()
+    .strategy(source)
+    .exchangeId("binance")
+    .instrument("BTC/USDT")
+    .from("2026-01-01T00:00:00Z")
+    .to("2026-02-01T00:00:00Z")
+    .param("rsiPeriod", ParamAxis.range(7, 28, 1))
+    .param("useTrendFilter", ParamAxis.of(true, false))
+    .objective(SweepObjective.SHARPE)
+    .build();
+
+Sweep sweep = qts.sweep(request).join();
+
+// Available immediately, before a single trial has run:
+sweep.accepted().getSeed();      // effective seed — resubmit it to replay a sampled sweep
+sweep.accepted().getQueued();    // false: an identical sweep already existed, nothing was enqueued
+sweep.accepted().getTotalRuns(); // size of the expanded grid
+
+ExecuteSweepResult result = sweep.await().join();
+```
+
+`Sweep` exposes `id()`, `requestId()`, `strategyId()`, `accepted()`, `state()`, `progress()`
+(a `Flow.Publisher<SweepProgressEvent>`), `await()`, `results(...)`, `cancel()`, and
+`sensitivity()`.
+
+### Reading the leaderboard
+
+**The default order is not the raw objective order.** It is *plateau* order: a point's plateau
+score is the objective of the worst run in its immediate neighbourhood, so a point ranks well only
+if the region around it does too — the highest raw score is very often a spike that does not
+survive the parameters moving slightly. Pass `SweepOptions.builder().ranking(SweepRanking.RAW)` for
+the unadjusted order.
+
+What you asked for is not always what was applied: read `result.getRanking()`. A sweep with no
+stored parameter grid cannot be plateau-ranked and falls back to raw.
+
+- **`plateauScore` and `neighbourCount` are read together.** `neighbourCount == 0` means the point
+  had no neighbours to compare against, so its plateau score is *unevidenced*, not confirmed.
+- **`deflatedSharpe`** — probability that a row's Sharpe reflects real edge rather than the best
+  draw from however many vectors were tried. Absent on aborted runs and on sweeps with too few
+  trials to deflate against.
+- **`pbo`** — probability of backtest overfitting for the sweep as a whole. Above ~0.5 the sweep is
+  selecting noise, which discredits the top row however good it looks. Absent while the sweep is
+  still running and on sweeps too small for the statistic to mean anything.
+- **`PARTIAL` is a terminal status**, not a "still going" one: at least one unit of work died and
+  its runs are missing. There is no sweep-wide failed status, so a sweep whose every shard died is
+  `PARTIAL` with `leaderboardSize == 0`.
+
+### Every row, not just the top of the board
+
+The ranked view is a *display* view: sorted and capped, with `result.getTruncated()` reporting when
+the cap bit. `SweepOrder.NATURAL` returns every available row instead, untruncated, in
+deterministic `runIx` order — the view to read when materialising durable trial rows, and the route
+to rows the ranked view dropped.
+
+The view is a query parameter on the *read*, so switching it costs one request. `Sweep.results(...)`
+re-reads the sweep you already have — no compile, no prepare, no second sweep:
+
+```java
+ExecuteSweepResult ranked = sweep.await().join();
+
+if (Boolean.TRUE.equals(ranked.getTruncated())) {
+    ExecuteSweepResult all = sweep.results(SweepOrder.NATURAL);   // every row, one GET
+}
+```
+
+`sweep.results(order, ranking)` takes both; `null` means the platform default for either. Use
+`SweepOptions.order(...)` instead when you want the *polled* view — the one `await()` resolves
+with — to be the natural one from the start.
+
+Works on a sweep still in flight too, returning the rows finished so far.
+
+`ranking` is **ignored** on the natural view: its order is always `runIx`, and the response comes
+back `raw`. Rank, plateau score and neighbour count belong to the ranked view and are not part of
+it.
+
+### Walk-forward
+
+Attaching `walkForward` changes what the sweep does, not just how much of it runs: the data is cut
+into sequential folds, each fold optimizes the whole grid on its own window and scores only its
+winner on the window immediately after. It answers "does re-optimizing this periodically actually
+work" rather than "which parameters won", and costs folds × grid.
+
+```java
+SweepRequest wf = SweepRequest.builder()
+    // …
+    .walkForward(WalkForwardSpec.of(4, 70))   // 4 folds, 70 % of each spent optimizing
+    .build();
+```
+
+`result.getWalkForward()` is the discriminator, and it is present from acceptance onward — also on
+`sweep.accepted().getWalkForward()` — so you can branch on the answer's shape while still polling.
+Its leaderboard is one row per *completed fold*: that fold's winner as it scored out-of-sample,
+with **`runIx` carrying the fold index rather than a grid position**. No plateau, DSR or PBO figure
+is reported for one. **`paramDrift` absent is not zero** — the field is omitted when it could not be
+computed, and zero is itself a meaningful reading (winners that never moved), so a placeholder
+would be indistinguishable from perfect stability.
+
+### Progress
+
+`SweepProgressEvent.snapshot()` carries the platform's progress record on every `EXECUTING` event.
+Two of its counts are easy to add together by mistake: `aborted` counts individual runs that
+executed and aborted, while `failedShards` counts whole units of work that failed and never
+reported anything — a shard that dies before producing a row leaves `aborted` at zero, which is
+exactly why the second count exists. `retrying` is not a failure count either. `etaSeconds` is
+*omitted, never zero* when it cannot be computed, and runs conservative when present.
+
+### Sensitivity
+
+How the objective moves as each parameter moves — the question a leaderboard cannot answer, since a
+sweep can spend its whole budget on an axis that never moved the objective at all.
+
+```java
+SweepSensitivity s = sweep.sensitivity();               // the sweep's own objective
+SweepSensitivity r = sweep.sensitivity(SweepObjective.SORTINO);
+
+if (Boolean.TRUE.equals(s.getHeatmapsTruncated())) {
+    // at least one two-parameter surface was left out — this is not the full interaction set
+}
+```
+
+Marginals are always complete; the pair surfaces are quadratic in the axis count and may be capped,
+which is what `heatmapsTruncated` reports. Readable while the sweep is still running, in which case
+the aggregates cover the rows finished so far (`rowsAnalysed`). Aborted runs are excluded
+throughout — a run that threw measured nothing.
+
 ## Hourly tickers/klines downloads
 
 Stream one hour of raw ticker or kline data for an instrument. The default wire format is
@@ -372,6 +509,13 @@ job.cancel();
 Both stop polling immediately and, if the execute stage has already started
 server-side, best-effort call `cancelBacktest` on the backend.
 
+**A sweep cancels differently, on purpose.** `Sweep.cancel()` asks the platform to stop between
+parameter vectors, and the rows already scored stay readable — so the SDK keeps polling until the
+sweep reports `CANCELLED` and then resolves `await()` *normally*, with the partial leaderboard,
+rather than raising `QTSCanceledError`. Check `result.getStatus()`. That also means cancelling
+depends on the platform answering: with no `timeout` configured, a sweep that never reports
+cancelled leaves `await()` waiting.
+
 ## Under the hood
 
 - [`dev.failsafe:failsafe`](https://failsafe.dev) — retry policies with exponential backoff, optional per-stage `Timeout`, `withInterrupt()` so thread interruption from `CompletableFuture#cancel(true)` propagates cleanly.
@@ -431,6 +575,15 @@ JWT_API_TOKEN=... QTSURFER_API_URL=... QTSURFER_TEST_VERBOSE=1 mvn -B -Dtest='*I
 - [x] `qts.strategyState(strategyId)` → `StrategyState` with verdict, `detail`, engine `notices`, and
       `requiredSources`
 - [x] `qts.instruments(exchangeId, segment)` → per-segment instrument listing (`spot` / `futures`)
+
+### v0.6 — Parameter sweeps ✅
+
+- [x] `qts.sweep(request)` orchestrating compile → prepare → executeSweep → leaderboard poll
+- [x] `Sweep` handle with `id()`, `state()`, `progress()`, `await()`, `cancel()`, `accepted()`,
+      and handle-scoped `sensitivity()`
+- [x] `SweepRequest` / `ParamAxis` / `WalkForwardSpec` for the grid and walk-forward validation,
+      `SweepOptions.ranking(...)` for plateau vs raw leaderboard ordering, and
+      `SweepOptions.order(...)` for the untruncated `natural` view
 
 ## License
 

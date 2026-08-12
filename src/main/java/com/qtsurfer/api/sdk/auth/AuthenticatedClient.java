@@ -16,6 +16,9 @@ import com.qtsurfer.api.sdk.BacktestOptions;
 import com.qtsurfer.api.sdk.BacktestRequest;
 import com.qtsurfer.api.sdk.DownloadFormat;
 import com.qtsurfer.api.sdk.Strategy;
+import com.qtsurfer.api.sdk.Sweep;
+import com.qtsurfer.api.sdk.SweepOptions;
+import com.qtsurfer.api.sdk.SweepRequest;
 import com.qtsurfer.api.sdk.ValidationOutcome;
 import com.qtsurfer.api.sdk.errors.QTSAuthError;
 import com.qtsurfer.api.sdk.errors.QTSDownloadError;
@@ -23,6 +26,7 @@ import com.qtsurfer.api.sdk.errors.QTSError;
 import com.qtsurfer.api.sdk.internal.HttpStrategyCompileClient;
 import com.qtsurfer.api.sdk.internal.ValidationOutcomes;
 import com.qtsurfer.api.sdk.workflows.BacktestWorkflow;
+import com.qtsurfer.api.sdk.workflows.SweepWorkflow;
 
 import java.io.InputStream;
 import java.net.http.HttpRequest;
@@ -47,7 +51,8 @@ import java.util.function.Supplier;
  *
  * <p>Exposes the same workflow surface as {@code QTSurfer}: {@code compile},
  * {@code validateStrategy}, {@code strategyState}, {@code backtest},
- * {@code exchanges}, {@code instruments}, {@code tickers}, {@code klines}.
+ * {@code sweep}, {@code exchanges}, {@code instruments}, {@code tickers},
+ * {@code klines}.
  * Method semantics are unchanged — only the bearer token management differs.
  *
  * <p>Refresh policy: a 401 from any call routed through the generated
@@ -66,6 +71,7 @@ public final class AuthenticatedClient {
     private final AuthOptions options;
     private final AuthApi authApi;
     private final BacktestWorkflow backtestWorkflow;
+    private final SweepWorkflow sweepWorkflow;
     private final ExchangeBinaryDownloads downloads;
     private final ExchangeApi exchangeApi;
     private final StrategyApi strategyApi;
@@ -75,12 +81,14 @@ public final class AuthenticatedClient {
             AuthOptions options,
             AuthApi authApi,
             BacktestWorkflow backtestWorkflow,
+            SweepWorkflow sweepWorkflow,
             ExchangeBinaryDownloads downloads,
             ExchangeApi exchangeApi,
             StrategyApi strategyApi) {
         this.options = options;
         this.authApi = authApi;
         this.backtestWorkflow = backtestWorkflow;
+        this.sweepWorkflow = sweepWorkflow;
         this.downloads = downloads;
         this.exchangeApi = exchangeApi;
         this.strategyApi = strategyApi;
@@ -336,6 +344,49 @@ public final class AuthenticatedClient {
         return withRefreshOn401Async(() -> backtestWorkflow.runFull(request, opts));
     }
 
+    /** Equivalent to {@link #sweep(SweepRequest, SweepOptions)} with {@link SweepOptions#defaults()}.
+     *
+     * @param request the grid, the instrument, and the window
+     * @return the handle, once the platform has accepted the sweep
+     */
+    public CompletableFuture<Sweep> sweep(SweepRequest request) {
+        return sweep(request, SweepOptions.defaults());
+    }
+
+    /**
+     * Run the full compile → prepare → executeSweep pipeline and resolve once
+     * the platform has accepted the sweep, handing back a {@link Sweep} that
+     * keeps polling the leaderboard in the background. See
+     * {@link com.qtsurfer.api.sdk.QTSurfer#sweep(SweepRequest, SweepOptions)}
+     * for why the sweep is one call rather than composable stages, and
+     * {@link Sweep#await()} for how to read what it found.
+     *
+     * <p>A {@code 401} during prepare or submission triggers one token refresh
+     * and then restarts the <em>entire</em> pipeline from compile — not just
+     * the stage that failed. Two limits are worth knowing: a {@code 401} from
+     * the compile stage itself is not retried (see
+     * {@link #compile(String, BacktestOptions)}), and neither is one raised by
+     * the background leaderboard poll, which starts after this future has
+     * already resolved and surfaces on {@link Sweep#await()} instead. The
+     * handle-scoped {@link Sweep#sensitivity()} and {@link Sweep#cancel()} sit
+     * outside the policy for the same reason.
+     *
+     * <p>This call resolves the session's token synchronously before
+     * scheduling any async work: on a session with no cached or stored token,
+     * it blocks to mint one and throws
+     * {@link com.qtsurfer.api.sdk.errors.QTSAuthError} directly (not through
+     * the returned future) if that mint fails.
+     *
+     * @param request the grid, the instrument, and the window
+     * @param opts    tuning knobs (poll interval, timeout, progress callback,
+     *                leaderboard ordering) applied to every stage of the pipeline
+     * @return the handle, once the platform has accepted the sweep
+     */
+    public CompletableFuture<Sweep> sweep(SweepRequest request, SweepOptions opts) {
+        Objects.requireNonNull(request, "request");
+        return withRefreshOn401Async(() -> sweepWorkflow.submit(request, opts));
+    }
+
     /**
      * List available exchanges on the platform. Synchronous — blocks the
      * calling thread for the HTTP round trip. Participates in the
@@ -536,14 +587,15 @@ public final class AuthenticatedClient {
 
         BacktestingApi backtestingApi = new BacktestingApi(apiClient);
         ExecutorService exec = o.executor() != null ? o.executor() : ForkJoinPool.commonPool();
-        BacktestWorkflow workflow = new BacktestWorkflow(
-                new HttpStrategyCompileClient(apiClient), backtestingApi, exec);
+        HttpStrategyCompileClient compileClient = new HttpStrategyCompileClient(apiClient);
+        BacktestWorkflow workflow = new BacktestWorkflow(compileClient, backtestingApi, exec);
+        SweepWorkflow sweeps = new SweepWorkflow(compileClient, backtestingApi, exec);
         ExchangeBinaryDownloads downloads = new ExchangeBinaryDownloads(apiClient);
         ExchangeApi exchangeApi = new ExchangeApi(apiClient);
         StrategyApi strategyApi = new StrategyApi(apiClient);
 
         AuthenticatedClient session = new AuthenticatedClient(
-                o, mintApi, workflow, downloads, exchangeApi, strategyApi);
+                o, mintApi, workflow, sweeps, downloads, exchangeApi, strategyApi);
         // Keep `shared` mirrored to the session's cache via a bridge thread-safely.
         session.linkBearerRef(shared);
 

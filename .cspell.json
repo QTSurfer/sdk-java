@@ -26,7 +26,14 @@
     "failsafe",
     "Failsafe",
     "slf4j",
-    "getenv"
+    "getenv",
+    "Sharpe",
+    "sortino",
+    "Sortino",
+    "maxdd",
+    "pbo",
+    "lhs",
+    "hypercube"
   ],
   "ignorePaths": [
     "target",

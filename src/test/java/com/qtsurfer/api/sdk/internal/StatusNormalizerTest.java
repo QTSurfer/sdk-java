@@ -16,10 +16,20 @@ class StatusNormalizerTest {
 
     @Test
     void treatsUnknownStatusAsInProgress() {
-        // Spec 0.98.0 dropped the Partial status; a single-instrument prepare is now
-        // always terminal on Completed. Any unrecognized value keeps polling.
-        assertEquals(Normalized.IN_PROGRESS, StatusNormalizer.normalize("partial"));
+        // Spec 0.98.0 dropped the Partial status from prepare; a single-instrument prepare is
+        // now always terminal on Completed. Any unrecognized value keeps polling.
         assertEquals(Normalized.IN_PROGRESS, StatusNormalizer.normalize("queued"));
+    }
+
+    /**
+     * A sweep that finishes with a dead shard reports {@code PARTIAL}, and that is the end of
+     * it — the rows it produced are readable and no more are coming. Normalizing it to
+     * IN_PROGRESS would poll a finished sweep forever.
+     */
+    @Test
+    void treatsPartialAsTerminal() {
+        assertEquals(Normalized.COMPLETED, StatusNormalizer.normalize("partial"));
+        assertEquals(Normalized.COMPLETED, StatusNormalizer.normalize("PARTIAL"));
     }
 
     @Test

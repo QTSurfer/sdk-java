@@ -6,6 +6,76 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-08-12
+
+### Added ✨
+
+- **Parameter sweeps.** Both entry points (`QTSurfer` and `AuthenticatedClient`) gain
+  `sweep(request)` / `sweep(request, options)` → `CompletableFuture<Sweep>`, running the same
+  compile → prepare → submit pipeline as `backtest(...)` and then polling the leaderboard in the
+  background. One call rather than composable stages: the sweep endpoint is addressed by the id of
+  an already-prepared dataset, and preparing is idempotent, so sweeping the same window twice
+  prepares it once.
+  - `SweepRequest` (+ builder) — the grid, the instrument, and the window. Axes are `ParamAxis`,
+    a sealed `range(from, to, step)` / `of(values…)` pair, because the two shapes are mutually
+    exclusive on the wire. Optional `sampler`, `samples`, `seed`, `objective` and `walkForward`.
+  - `SweepOptions` (+ builder) — poll interval, backoff ceiling, per-stage timeout, progress
+    callback, `ranking`, and `order`. Poll intervals default longer than a backtest's, since a
+    sweep's leaderboard changes on the timescale of shards finishing.
+  - `Sweep` — the handle: `id()`, `requestId()`, `strategyId()`, `accepted()`, `state()`,
+    `progress()` (a `Flow.Publisher<SweepProgressEvent>`), `await()`, `results(order)` /
+    `results(order, ranking)`, `cancel()`, and `sensitivity()` / `sensitivity(objective)`.
+  - `SweepObjective`, `SweepRanking`, `SweepOrder`, `SweepSampler`, `WalkForwardSpec`,
+    `SweepProgressEvent`, and `com.qtsurfer.api.sdk.workflows.SweepWorkflow`.
+
+  **The leaderboard's default order is not the raw objective order.** It is plateau order: a
+  point's plateau score is the objective of the worst run in its immediate neighbourhood, so a
+  point ranks well only if the region around it does too — the highest raw score is frequently a
+  spike that does not survive the parameters moving slightly. `SweepRanking.RAW` asks for the
+  unadjusted order, and `result.getRanking()` reports which was *actually* applied, which is not
+  always the one requested: a sweep with no stored parameter grid falls back to raw. Read
+  `plateauScore` and `neighbourCount` together — `neighbourCount: 0` means the score is
+  unevidenced, not confirmed.
+
+  **That leaderboard is also capped**, and `truncated` says when the cap bit.
+  `SweepOrder.NATURAL` returns every available row instead, in deterministic `runIx` order — the
+  view to read when materialising durable trial rows, and the way to reach rows the ranked view
+  dropped. `ranking` is ignored on that view, which is always ordered by `runIx`.
+
+  The view is a query parameter on the read rather than a property of the run, so `Sweep.results(order)`
+  / `results(order, ranking)` re-reads the same sweep in a different view — one request, no compile,
+  no prepare, no second sweep — and works on a sweep still in flight, returning the rows finished
+  so far. `SweepOptions.order(...)` sets the view the background poll uses, and so the one
+  `await()` resolves with.
+
+  **A walk-forward sweep answers in a different shape**, and `walkForward` on the response is the
+  discriminator — present from acceptance onward (also on `sweep.accepted()`), so it is safe to
+  branch on while polling. Its leaderboard is one row per completed fold, that fold's winner as it
+  scored out-of-sample, with `runIx` carrying the fold index rather than a grid position; no
+  plateau, deflated-Sharpe or PBO figure is reported for one. `paramDrift` absent is not zero — the
+  field is omitted when it could not be computed, and zero is itself a meaningful reading.
+
+  **`Sweep.await()` resolves on cancellation** instead of raising, unlike `Backtest.await()`. A
+  cancelled sweep keeps every row it already scored, so the SDK polls until the platform reports
+  `CANCELLED` and hands back the partial leaderboard; read `result.getStatus()`. `PARTIAL` is
+  likewise terminal, and since there is no sweep-wide failed status, a sweep whose every shard died
+  is `PARTIAL` with an empty leaderboard.
+
+  **`Sweep.sensitivity(...)`** returns the whole `SweepSensitivity` — marginals, heatmaps, and
+  `heatmapsTruncated`. The flag is the point: the two-parameter surfaces are quadratic in the axis
+  count and may be capped, and a silently short list would read as "these are all the
+  interactions".
+
+### Changed 🔄
+
+- `StatusNormalizer` treats `partial` as terminal. Only the sweep statuses use that value — a sweep
+  that finishes with a dead shard reports it, and its rows are readable — so a poll that read it as
+  "still running" would never stop. The prepare and execute paths are unaffected.
+- The prepare stage and the polling loop moved into `com.qtsurfer.api.sdk.internal`
+  (`Preparation`, `Polling`, `ApiCalls`), shared by the backtest and sweep workflows rather than
+  duplicated. Behaviour is unchanged; callers outside this library are not expected to touch
+  `…sdk.internal`, but the types are reachable, so this is named rather than treated as invisible.
+
 ## [0.11.0] — 2026-08-12
 
 ### Added ✨
