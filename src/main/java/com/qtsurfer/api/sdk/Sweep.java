@@ -237,6 +237,18 @@ public final class Sweep {
      * never moved), so a placeholder would be indistinguishable from perfect
      * stability.
      *
+     * <p><strong>An empty leaderboard is not always an empty answer.</strong> A
+     * sweep can finish having scored nothing — every shard failed before
+     * producing a row — and in that case
+     * {@link ExecuteSweepResult#getFailReason()} carries the cause reported by
+     * the <em>first</em> shard to fail, typically something the whole grid would
+     * have hit, such as a strategy that could not be loaded. Read it before
+     * concluding that a sweep with no rows simply found nothing: those are
+     * different outcomes and the leaderboard alone cannot tell them apart. Only
+     * the first failure is recorded, so where several shards failed differently
+     * this names one of them rather than summarising all — pair it with
+     * {@code getProgress().getFailedShards()} for the count.
+     *
      * @return the final leaderboard
      */
     public CompletableFuture<ExecuteSweepResult> await() { return result; }

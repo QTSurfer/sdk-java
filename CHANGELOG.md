@@ -75,6 +75,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   (`Preparation`, `Polling`, `ApiCalls`), shared by the backtest and sweep workflows rather than
   duplicated. Behaviour is unchanged; callers outside this library are not expected to touch
   `…sdk.internal`, but the types are reachable, so this is named rather than treated as invisible.
+- Bumped `com.qtsurfer:api-client-java` to `0.9.0` (API spec `0.107.0`). `ExecuteSweepResult` gains
+  `getFailReason()`, so a sweep that finished having scored nothing can now say why instead of
+  handing back an empty leaderboard and no explanation — the platform always reported this and the
+  contract never declared it, so every client dropped it. `Sweep.await()` documents how to read it,
+  including that only the first failing shard's cause is recorded.
+
+### Fixed 🐛
+
+- **Cancelling the future from the `backtest(...)` shortcut does not stop the run** — it ends your
+  wait while the backtest keeps running server-side, still billing. The shortcut composes its
+  stages with `thenCompose`, and cancelling a composed `CompletableFuture` does not propagate back
+  through the chain. Behaviour is unchanged and intentional; what changed is that the documentation
+  said the opposite, so anyone who relied on it was not stopping the work they thought they were.
+  `Backtest.cancel()`, via the decomposed API, is how to stop it.
 
 ## [0.11.0] — 2026-08-12
 

@@ -18,7 +18,7 @@
 
 ---
 
-Where `com.qtsurfer:api-client-java` gives you one method per endpoint, this package adds **workflow orchestration**, **normalized errors**, and **cancellation** — run a backtest with a single `CompletableFuture`.
+Where `com.qtsurfer:api-client-java` gives you one method per endpoint, this package adds **workflow orchestration**, **normalized errors**, and **cancellation** — run a backtest, or a whole parameter sweep, from a single call. What it reaches of the API is listed in [API coverage](#api-coverage).
 
 - Powered by [`java.net.http.HttpClient`](https://docs.oracle.com/en/java/javase/17/docs/api/java.net.http/java/net/http/HttpClient.html) (JDK built-in) via the transitive client.
 - Retry/backoff/timeout delegated to [Failsafe](https://failsafe.dev) — no hand-rolled polling loops.
@@ -188,6 +188,47 @@ ResultMap result = job.await().join();
 
 `Backtest` exposes `id()`, `state()`, `progress()` (a `Flow.Publisher<BacktestProgress>`),
 `await()`, and `cancel()` (best-effort server-side `cancelBacktest`).
+
+## API coverage
+
+Measured against **API spec 0.107.0**: 18 operations, all 18 reachable from this SDK.
+
+It exists because the generated `com.qtsurfer:api-client-java` tracks the spec automatically and
+this hand-written layer does not. Unqualified method names below are on both entry points,
+`QTSurfer` and `AuthenticatedClient`, whose surfaces mirror each other; `authenticate` is the
+exception, since it is the auth path itself.
+
+| Operation | Reached by |
+| --- | --- |
+| `authenticate` | Direct — `QTSurfer.authenticate()`; `AuthenticatedClient.refresh()` forces a re-mint |
+| `listExchanges` | Direct — `exchanges()` |
+| `listInstruments` | Direct — `instruments(exchangeId)` |
+| `listSegmentInstruments` | Direct — `instruments(exchangeId, segment)` |
+| `downloadTickers` | Direct — `tickers(...)` |
+| `downloadKlines` | Direct — `klines(...)` |
+| `compileStrategy` | Direct — `compile(...)` → `Strategy` |
+| `validateStrategy` | Direct — `validateStrategy(strategyId)` → `ValidationOutcome` |
+| `getStrategy` | Direct — `strategyState(strategyId)` → `StrategyState` |
+| `prepareBacktest` | Via workflow — `backtest(...)` and `sweep(...)` |
+| `getPrepareStatus` | Via workflow — the prepare poll |
+| `executeBacktest` | Via workflow — `backtest(...)` |
+| `getBacktestResult` | Via workflow — the execute poll behind `Backtest.await()` |
+| `cancelBacktest` | Direct — `Backtest.cancel()` |
+| `executeSweep` | Via workflow — `sweep(...)` |
+| `getSweepResult` | Via workflow (the leaderboard poll) and direct — `Sweep.results(...)` re-reads it under another view |
+| `cancelSweep` | Direct — `Sweep.cancel()` |
+| `getSweepSensitivity` | Direct — `Sweep.sensitivity(...)` |
+
+**"Via workflow"** means the operation runs as a stage of `backtest(...)`, `sweep(...)`, or the
+decomposed `Strategy.backtest(...)`, and has no standalone method — deliberately. Those calls own
+the dataset lifecycle: preparing answers with the job id of the prepared window, and that id is
+what the execute and sweep endpoints then consume. A standalone `prepare()` would hand it to the
+caller to hold and pass on to every later call. Preparing is idempotent — the same instrument and
+window always resolve to the same job — so a workflow that prepares on every call duplicates no
+work, and the id never has to leave it. Not a gap.
+
+**Maintenance contract.** When the spec gains an operation, it gains a row here. If this layer
+deliberately does not wrap it, the row says so and why.
 
 ## What `backtest()` does
 
@@ -494,20 +535,22 @@ try {
 
 ## Cancellation
 
-Two ways to cancel an in-flight backtest:
+Cancelling an in-flight backtest goes through the `Backtest` handle:
 
 ```java
-// 1. Cancel the future returned by the backtest() shortcut.
-CompletableFuture<ResultMap> future = qts.backtest(req, opts);
-future.cancel(true);
-
-// 2. Cancel through the Backtest handle (decomposed API).
 Backtest job = strategy.backtest(req, opts).join();
 job.cancel();
 ```
 
-Both stop polling immediately and, if the execute stage has already started
-server-side, best-effort call `cancelBacktest` on the backend.
+That stops polling immediately and, if the execute stage has already started server-side,
+best-effort calls `cancelBacktest` on the backend.
+
+**Cancelling the future from the `backtest(...)` shortcut does not stop the run.** The shortcut
+composes its stages with `thenCompose`, and cancelling a composed `CompletableFuture` does not
+propagate back through the chain — so `future.cancel(true)` ends *your wait* and leaves the backtest
+running server-side, still billing. This is a property of how the shortcut is built, not an
+oversight to work around: if you need to stop the work rather than stop waiting for it, use the
+decomposed API above, which hands you the handle.
 
 **A sweep cancels differently, on purpose.** `Sweep.cancel()` asks the platform to stop between
 parameter vectors, and the rows already scored stay readable — so the SDK keeps polling until the
@@ -544,46 +587,13 @@ JWT_API_TOKEN=... QTSURFER_API_URL=... QTSURFER_TEST_VERBOSE=1 mvn -B -Dtest='*I
 
 ## Roadmap
 
-### v0.1 — Core workflow ✅
-
-- [x] `QTSurfer` client over `com.qtsurfer:api-client`
-- [x] `qts.backtest()` orchestrating compile → prepare → execute
-- [x] Backoff, timeout, and cancellation via Failsafe policies
-- [x] `QTSError` hierarchy
-
-### v0.2 — Domain objects + binary downloads ✅
-
-- [x] `Strategy` + `Backtest` handles with `id()`, `state()`, `progress()`, `await()`, `cancel()`
-- [x] Progress exposed as `Flow.Publisher<BacktestProgress>` (JDK reactive-streams)
-- [x] Hourly tickers/klines downloads (`qts.tickers(...)` / `qts.klines(...)`) with `DownloadFormat` (Lastra/Parquet)
-
-### v0.3 — Exchange & instrument discovery ✅
-
-- [x] `qts.exchanges()` → `List<Exchange>` (live, no cache)
-- [x] `qts.instruments(exchangeId)` → `List<InstrumentDetail>` with per-data-type coverage windows, last price, and 24 h volume
-
-### v0.4 — Ecosystem
+What the SDK reaches today is the [API coverage](#api-coverage) table; which release added what is
+in [CHANGELOG.md](./CHANGELOG.md). This section is only what is still missing — nothing here is a
+missing API operation:
 
 - [ ] TTL cache for `exchanges` / `instruments`
 - [ ] Loaders for `signalsUrl` Parquet into `duckdb-java` / `lastra-java`
 - [ ] Optional reactive adapters (Reactor / RxJava)
-
-### v0.5 — Strategy introspection ✅
-
-- [x] `qts.validateStrategy(strategyId)` → `ValidationOutcome` — a sealed `Queued` / `NotQueued`
-      answer to "did this call start a check?", kept separate from "is there a verdict?"
-- [x] `qts.strategyState(strategyId)` → `StrategyState` with verdict, `detail`, engine `notices`, and
-      `requiredSources`
-- [x] `qts.instruments(exchangeId, segment)` → per-segment instrument listing (`spot` / `futures`)
-
-### v0.6 — Parameter sweeps ✅
-
-- [x] `qts.sweep(request)` orchestrating compile → prepare → executeSweep → leaderboard poll
-- [x] `Sweep` handle with `id()`, `state()`, `progress()`, `await()`, `cancel()`, `accepted()`,
-      and handle-scoped `sensitivity()`
-- [x] `SweepRequest` / `ParamAxis` / `WalkForwardSpec` for the grid and walk-forward validation,
-      `SweepOptions.ranking(...)` for plateau vs raw leaderboard ordering, and
-      `SweepOptions.order(...)` for the untruncated `natural` view
 
 ## License
 
