@@ -6,6 +6,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-08-12
+
+### Added ✨
+
+- **Strategy validation and lookup.** Both entry points (`QTSurfer` and `AuthenticatedClient`) gain:
+  - `validateStrategy(strategyId)` → `ValidationOutcome` — asks the platform to instantiate the
+    compiled class and drive it through a bounded synthetic series, so a wiring fault surfaces
+    before the first backtest. The call is idempotent: it either queues a check or queues nothing
+    because the current compilation is already accounted for. `ValidationOutcome` is a sealed type
+    that keeps those two answers apart — `ValidationOutcome.Queued` (this call started a check;
+    carries the strategy id you passed in) and `ValidationOutcome.NotQueued` (this call started
+    nothing; carries the `StrategyState` the platform holds).
+  - `strategyState(strategyId)` → `StrategyState` — the platform's record of a registered strategy:
+    validation verdict, `detail`, engine `notices`, and the market data the compiled class needs.
+    Note this returns the api-client's `StrategyState`, not the SDK's `Strategy` handle. A verdict
+    is superseded by recompilation: when `compiledAt` is later than `validatedAt`, the recorded
+    verdict describes bytecode that is no longer what would run.
+  - `ValidationOutcome`, a sealed interface with the `Queued` / `NotQueued` records described
+    above, plus a `queued()` flag and `strategyId()` on both. Reading the outcome off the HTTP
+    status lives in `com.qtsurfer.api.sdk.internal.ValidationOutcomes` — callers outside this
+    library are not expected to touch `…sdk.internal`, but the type is reachable, so it is named
+    here rather than treated as invisible.
+
+  **`NotQueued` does not mean a verdict exists.** Whether this call queued work and whether there
+  is a verdict are two independent questions: a `NotQueued` state can itself be `pending`, from a
+  check an earlier call — possibly another process — started and that has not answered. Either
+  way, read the verdict with `strategyState(...)`, polling until `validation` leaves `pending`,
+  bounded by your own deadline: a queued check can stall (`validationStalled`) and is not
+  guaranteed to resolve. This SDK ships no polling helper.
+
+  `validation: passed` is a floor, not a guarantee — it means the class loaded and survived the
+  first event of a short synthetic run, not that the strategy is safe to run. `dryRunIncomplete`
+  means the check did not even finish its budget, so an empty `notices` list is not a clean bill
+  of health.
+
+- **Per-segment instrument listing.** `instruments(exchangeId, segment)` on both entry points —
+  lists one market segment (`spot` or `futures`) of an exchange. Unwraps the same HAL envelope as
+  the existing `instruments(exchangeId)`, which stays the default-segment (`spot`) shortcut, and
+  returns `List<InstrumentDetail>`.
+
 ## [0.10.0] — 2026-08-12
 
 ### Changed 🔄

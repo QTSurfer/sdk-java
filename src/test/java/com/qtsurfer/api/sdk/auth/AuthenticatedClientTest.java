@@ -1,7 +1,9 @@
 package com.qtsurfer.api.sdk.auth;
 
 import com.qtsurfer.api.client.model.AuthTokenResponse;
+import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.sdk.QTSurfer;
+import com.qtsurfer.api.sdk.ValidationOutcome;
 import com.qtsurfer.api.sdk.errors.QTSAuthError;
 import com.qtsurfer.api.sdk.errors.QTSDownloadError;
 import com.sun.net.httpserver.HttpServer;
@@ -19,6 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -37,6 +40,8 @@ class AuthenticatedClientTest {
     private final AtomicInteger tokenCalls = new AtomicInteger();
     private final List<Integer> tickerStatuses = new ArrayList<>();
     private final AtomicInteger tickerCalls = new AtomicInteger();
+    private final List<Integer> validateStatuses = new ArrayList<>();
+    private final AtomicInteger validateCalls = new AtomicInteger();
 
     record RequestRecord(String path, String method, String authorization, String apikey) {}
 
@@ -75,6 +80,20 @@ class AuthenticatedClientTest {
                         ? "LASTRA-OK".getBytes(StandardCharsets.UTF_8)
                         : ("{\"error\":\"" + status + "\"}").getBytes(StandardCharsets.UTF_8);
                 ctype = status == 200 ? "application/vnd.lastra" : "application/json";
+            } else if (path.endsWith("/validate")) {
+                int idx = validateCalls.getAndIncrement();
+                status = idx < validateStatuses.size()
+                        ? validateStatuses.get(idx)
+                        : validateStatuses.get(validateStatuses.size() - 1);
+                body = (status == 202
+                        ? "{\"strategyId\":\"s1\",\"validation\":\"pending\"}"
+                        : "{\"error\":\"" + status + "\"}").getBytes(StandardCharsets.UTF_8);
+                ctype = "application/json";
+            } else if (path.endsWith("/instruments")) {
+                status = 200;
+                body = ("{\"data\":[{\"id\":\"BTC/USDT\",\"base\":\"BTC\",\"quote\":\"USDT\"}],"
+                        + "\"meta\":{},\"_links\":{}}").getBytes(StandardCharsets.UTF_8);
+                ctype = "application/json";
             } else {
                 status = 404;
                 body = new byte[0];
@@ -239,6 +258,47 @@ class AuthenticatedClientTest {
         // Only the initial mint — no refresh.
         assertEquals(1, tokenCalls.get());
         assertEquals(1, tickerCalls.get());
+    }
+
+    @Test
+    void validateStrategyParticipatesInRefreshOn401() {
+        tokenResponses.add(jwt("jwt-1", "free"));
+        tokenResponses.add(jwt("jwt-2", "free"));
+        validateStatuses.add(401);
+        validateStatuses.add(202);
+
+        AuthenticatedClient session = QTSurfer.authenticate("ak", opts());
+        ValidationOutcome outcome = session.validateStrategy("s1");
+
+        // The retried call answered 202: it queued a check.
+        assertTrue(outcome.queued());
+        assertInstanceOf(ValidationOutcome.Queued.class, outcome);
+        assertEquals("s1", outcome.strategyId());
+        assertEquals(2, tokenCalls.get());
+        assertEquals(2, validateCalls.get());
+        RequestRecord retried = requests.stream()
+                .filter(r -> r.path().endsWith("/validate"))
+                .reduce((a, b) -> b)
+                .orElseThrow();
+        assertEquals("POST", retried.method());
+        assertEquals("/v1/strategy/s1/validate", retried.path());
+        assertEquals("Bearer jwt-2", retried.authorization());
+    }
+
+    @Test
+    void segmentInstrumentsHitsTheSegmentPathAndUnwrapsTheEnvelope() {
+        tokenResponses.add(jwt("jwt-1", "free"));
+
+        AuthenticatedClient session = QTSurfer.authenticate("ak", opts());
+        List<InstrumentDetail> instruments = session.instruments("binance", "futures");
+
+        assertEquals(1, instruments.size());
+        assertEquals("BTC/USDT", instruments.get(0).getId());
+        RequestRecord recorded = requests.stream()
+                .filter(r -> r.path().endsWith("/instruments"))
+                .reduce((a, b) -> b)
+                .orElseThrow();
+        assertEquals("/v1/exchange/binance/futures/instruments", recorded.path());
     }
 
     @Test

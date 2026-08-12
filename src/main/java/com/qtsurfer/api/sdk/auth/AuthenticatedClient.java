@@ -3,6 +3,7 @@ package com.qtsurfer.api.sdk.auth;
 import com.qtsurfer.api.client.api.AuthApi;
 import com.qtsurfer.api.client.api.BacktestingApi;
 import com.qtsurfer.api.client.api.ExchangeApi;
+import com.qtsurfer.api.client.api.StrategyApi;
 import com.qtsurfer.api.client.binary.ExchangeBinaryDownloads;
 import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.ApiException;
@@ -10,14 +11,17 @@ import com.qtsurfer.api.client.model.AuthTokenResponse;
 import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.client.model.ResultMap;
+import com.qtsurfer.api.client.model.StrategyState;
 import com.qtsurfer.api.sdk.BacktestOptions;
 import com.qtsurfer.api.sdk.BacktestRequest;
 import com.qtsurfer.api.sdk.DownloadFormat;
 import com.qtsurfer.api.sdk.Strategy;
+import com.qtsurfer.api.sdk.ValidationOutcome;
 import com.qtsurfer.api.sdk.errors.QTSAuthError;
 import com.qtsurfer.api.sdk.errors.QTSDownloadError;
 import com.qtsurfer.api.sdk.errors.QTSError;
 import com.qtsurfer.api.sdk.internal.HttpStrategyCompileClient;
+import com.qtsurfer.api.sdk.internal.ValidationOutcomes;
 import com.qtsurfer.api.sdk.workflows.BacktestWorkflow;
 
 import java.io.InputStream;
@@ -42,13 +46,14 @@ import java.util.function.Supplier;
  * fresh JWT when a call returns 401.
  *
  * <p>Exposes the same workflow surface as {@code QTSurfer}: {@code compile},
- * {@code backtest}, {@code exchanges}, {@code instruments}, {@code tickers},
- * {@code klines}. Method semantics are unchanged — only the bearer token
- * management differs.
+ * {@code validateStrategy}, {@code strategyState}, {@code backtest},
+ * {@code exchanges}, {@code instruments}, {@code tickers}, {@code klines}.
+ * Method semantics are unchanged — only the bearer token management differs.
  *
  * <p>Refresh policy: a 401 from any call routed through the generated
- * api-client (prepare, execute, result polling, exchanges, instruments,
- * tickers, klines) triggers exactly one {@code POST /v1/auth/token}
+ * api-client (prepare, execute, result polling, strategy validation and
+ * lookup, exchanges, instruments, tickers, klines) triggers exactly one
+ * {@code POST /v1/auth/token}
  * exchange, then the original call is retried once; a second 401 is
  * surfaced to the caller. The one exception is {@code compile}, which talks
  * to its endpoint directly and does not participate in this retry — see
@@ -63,6 +68,7 @@ public final class AuthenticatedClient {
     private final BacktestWorkflow backtestWorkflow;
     private final ExchangeBinaryDownloads downloads;
     private final ExchangeApi exchangeApi;
+    private final StrategyApi strategyApi;
     private final AtomicReference<AuthTokenResponse> cached = new AtomicReference<>();
 
     AuthenticatedClient(
@@ -70,12 +76,14 @@ public final class AuthenticatedClient {
             AuthApi authApi,
             BacktestWorkflow backtestWorkflow,
             ExchangeBinaryDownloads downloads,
-            ExchangeApi exchangeApi) {
+            ExchangeApi exchangeApi,
+            StrategyApi strategyApi) {
         this.options = options;
         this.authApi = authApi;
         this.backtestWorkflow = backtestWorkflow;
         this.downloads = downloads;
         this.exchangeApi = exchangeApi;
+        this.strategyApi = strategyApi;
     }
 
     /** Configuration in use by this session. */
@@ -184,6 +192,115 @@ public final class AuthenticatedClient {
         return compile(request.strategy(), opts);
     }
 
+    /**
+     * Ask the platform to check that a registered strategy can actually run.
+     * The compiled class is instantiated and driven through a bounded
+     * synthetic series, so a wiring fault surfaces here instead of at the
+     * first backtest. Synchronous — blocks the calling thread for the HTTP
+     * round trip. Participates in the session's refresh-on-401 policy: an
+     * unauthorized response triggers one token refresh and one retry of this
+     * call. Because the call is idempotent, that retry queues nothing extra.
+     *
+     * <p><strong>Did this call start work, and is there a verdict? Two
+     * questions, two answers.</strong> The call is idempotent: it either
+     * queues a check, or queues nothing because the current compilation is
+     * already accounted for. The returned {@link ValidationOutcome} says
+     * which — {@link ValidationOutcome.Queued} for the first,
+     * {@link ValidationOutcome.NotQueued} for the second.
+     *
+     * <p><strong>{@code NotQueued} does not mean a verdict exists.</strong>
+     * The {@link StrategyState} it carries can itself be {@code pending} — a
+     * check queued by an earlier call, possibly from another process, that
+     * has not answered yet. So a caller that wants a verdict has to read one
+     * either way:
+     *
+     * <ul>
+     *   <li>{@link ValidationOutcome#queued()} — did <em>this</em> call start
+     *       a check?</li>
+     *   <li>{@link StrategyState#getValidation()} — is there a verdict right
+     *       now? {@code passed} or {@code failed} is terminal;
+     *       {@code pending} is not, so poll {@link #strategyState(String)}
+     *       until it leaves {@code pending}.</li>
+     * </ul>
+     *
+     * <p>Polling needs its own deadline. A queued check can go unreported for
+     * far longer than one takes — the platform reports that as
+     * {@link StrategyState#getValidationStalled()} — so {@code pending} is
+     * not guaranteed to resolve, and a caller that waits without a timeout
+     * can wait indefinitely. A stall disproves nothing about the strategy;
+     * the check simply has not run. This SDK ships no polling helper.
+     *
+     * <p><strong>{@code passed} does not mean the strategy is correct.</strong>
+     * It means the class loaded and survived the first event of a short
+     * synthetic run — a floor, not a guarantee, and not a statement that the
+     * strategy is safe to run. When
+     * {@link StrategyState#getDryRunIncomplete()} is true the check did not
+     * even finish its budget, so the floor is lower still and an empty
+     * {@link StrategyState#getNotices()} list is not a clean bill of health.
+     *
+     * @param strategyId id of a registered strategy, as returned by
+     *                   {@link #compile(String)}
+     * @return whether this call queued a check, and — when it did not — the
+     *         state the platform holds
+     * @throws QTSError on HTTP 4xx/5xx (including {@code 404} when no such
+     *                  strategy is registered for this caller) or transport
+     *                  failure
+     */
+    public ValidationOutcome validateStrategy(String strategyId) {
+        Objects.requireNonNull(strategyId, "strategyId");
+        return withRefreshOn401(() -> {
+            try {
+                return ValidationOutcomes.of(
+                        strategyId, strategyApi.validateStrategyWithHttpInfo(strategyId));
+            } catch (ApiException e) {
+                throw new QTSError("validateStrategy call failed: " + describe(e), e);
+            }
+        });
+    }
+
+    /**
+     * Fetch what the platform knows about a registered strategy: that it
+     * compiled, what market data the compiled class needs, and what
+     * validating it found. Synchronous — blocks the calling thread for the
+     * HTTP round trip. Participates in the session's refresh-on-401 policy:
+     * an unauthorized response triggers one token refresh and one retry of
+     * this call.
+     *
+     * <p>Resolves to the api-client's {@link StrategyState} record — the
+     * platform's view of the strategy — not to the SDK's {@link Strategy}
+     * handle that {@link #compile(String)} produces.
+     *
+     * <p>This is the endpoint to poll while a check is outstanding, whether
+     * {@link #validateStrategy(String)} queued it or reported that one was
+     * already accounted for. See that method for what a verdict does and does
+     * not mean, and for why a polling loop needs its own deadline.
+     *
+     * <p>A verdict describes the bytecode that produced it, and recompiling
+     * supersedes it: when {@link StrategyState#getCompiledAt()} is later than
+     * {@link StrategyState#getValidatedAt()}, the recorded verdict was reached
+     * against a compilation that is no longer what would run, and
+     * {@link #validateStrategy(String)} can be called again to refresh it.
+     *
+     * <p>A {@code 404} means exactly one thing — no such registered strategy
+     * for this caller. It is never a stale or expired answer; registration and
+     * verdict are stored durably, not cached.
+     *
+     * @param strategyId id of a registered strategy, as returned by
+     *                   {@link #compile(String)}
+     * @return the platform's record of the strategy
+     * @throws QTSError on HTTP 4xx/5xx or transport failure
+     */
+    public StrategyState strategyState(String strategyId) {
+        Objects.requireNonNull(strategyId, "strategyId");
+        return withRefreshOn401(() -> {
+            try {
+                return strategyApi.getStrategy(strategyId);
+            } catch (ApiException e) {
+                throw new QTSError("strategyState call failed: " + describe(e), e);
+            }
+        });
+    }
+
     /** Equivalent to {@link #backtest(BacktestRequest, BacktestOptions)} with {@link BacktestOptions#defaults()}. */
     public CompletableFuture<ResultMap> backtest(BacktestRequest request) {
         return backtest(request, BacktestOptions.defaults());
@@ -252,6 +369,36 @@ public final class AuthenticatedClient {
         return withRefreshOn401(() -> {
             try {
                 return exchangeApi.listInstruments(exchangeId).getData();
+            } catch (ApiException e) {
+                throw new QTSError("instruments call failed: " + describe(e), e);
+            }
+        });
+    }
+
+    /**
+     * List the instruments of one market segment of the given exchange,
+     * including per-data-type coverage and market info. Synchronous — blocks
+     * the calling thread for the HTTP round trip. Participates in the
+     * session's refresh-on-401 policy: an unauthorized response triggers one
+     * token refresh and one retry of this call.
+     *
+     * <p>Unwraps the same {@code InstrumentListResponse} HAL envelope as
+     * {@link #instruments(String)} and returns just the instrument list. The
+     * single-argument overload is the default-segment shortcut and lists the
+     * {@code spot} segment.
+     *
+     * @param exchangeId exchange identifier (e.g. {@code "binance"})
+     * @param segment    market segment to list: {@code "spot"} or
+     *                   {@code "futures"}
+     * @return the instruments of that segment
+     * @throws QTSError on HTTP 4xx/5xx or transport failure
+     */
+    public List<InstrumentDetail> instruments(String exchangeId, String segment) {
+        Objects.requireNonNull(exchangeId, "exchangeId");
+        Objects.requireNonNull(segment, "segment");
+        return withRefreshOn401(() -> {
+            try {
+                return exchangeApi.listSegmentInstruments(exchangeId, segment).getData();
             } catch (ApiException e) {
                 throw new QTSError("instruments call failed: " + describe(e), e);
             }
@@ -393,9 +540,10 @@ public final class AuthenticatedClient {
                 new HttpStrategyCompileClient(apiClient), backtestingApi, exec);
         ExchangeBinaryDownloads downloads = new ExchangeBinaryDownloads(apiClient);
         ExchangeApi exchangeApi = new ExchangeApi(apiClient);
+        StrategyApi strategyApi = new StrategyApi(apiClient);
 
         AuthenticatedClient session = new AuthenticatedClient(
-                o, mintApi, workflow, downloads, exchangeApi);
+                o, mintApi, workflow, downloads, exchangeApi, strategyApi);
         // Keep `shared` mirrored to the session's cache via a bridge thread-safely.
         session.linkBearerRef(shared);
 

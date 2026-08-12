@@ -205,6 +205,73 @@ Progress is emitted:
 - On every stage transition (`percent == null`).
 - After each poll where the backend reports `size > 0` (`percent` in 0–100).
 
+## Strategy validation
+
+Before spending a backtest on it, ask the platform to check that a compiled strategy can actually
+run: the class is instantiated and driven through a bounded synthetic series, so a wiring fault
+surfaces here instead of on your first run.
+
+The call is idempotent: it either queues a check, or queues nothing because the current compilation
+is already accounted for. `ValidationOutcome` keeps those two answers apart.
+
+```java
+import com.qtsurfer.api.sdk.ValidationOutcome;
+
+Strategy strategy = qts.compile(source).join();
+
+ValidationOutcome outcome = qts.validateStrategy(strategy.id());
+
+if (outcome instanceof ValidationOutcome.NotQueued nq) {
+    // This call started nothing — `nq.state()` is what the platform already holds.
+    log.info("Nothing queued; state is {}", nq.state().getValidation());
+} else {
+    // This call started a check. Nothing to read yet.
+    log.info("Queued a check for {}", outcome.strategyId());
+}
+```
+
+`ValidationOutcome` is a sealed interface permitting exactly `Queued` and `NotQueued`, so on Java 21
+and later you can `switch` over it exhaustively without a `default`.
+
+**`NotQueued` does not mean a verdict exists.** These are two independent questions:
+`outcome.queued()` answers *did this call start work?*, and `validation` answers *is there a verdict
+right now?* A `NotQueued` state can itself be `pending` — a check that an earlier call, possibly
+from another process, already started and that has not answered.
+
+So read the verdict either way:
+
+```java
+import com.qtsurfer.api.client.model.StrategyState;
+
+StrategyState state = qts.strategyState(strategy.id());
+
+switch (state.getValidation()) {
+    case PASSED        -> log.info("Loaded and survived its first event");
+    case FAILED        -> log.error("Validation failed: {}", state.getDetail());
+    case PENDING       -> log.warn("Still running — re-read later, this is not a verdict");
+    case NOT_VALIDATED -> log.warn("Registered but never checked");
+}
+// `notices` is absent, not empty, when the run surfaced nothing.
+if (state.getNotices() != null) {
+    state.getNotices().forEach(n -> log.info("{} {} — {}", n.getLevel(), n.getCode(), n.getMessage()));
+}
+```
+
+Re-read on your own schedule until `validation` leaves `pending`, bounded by a deadline of your own:
+a queued check can stall (`validationStalled`) and is not guaranteed to resolve. The SDK ships no
+polling helper.
+
+**`passed` is a floor, not a guarantee.** It means the class loaded and survived the first event of
+a short synthetic run — not that the strategy is correct, and not that it is safe to run. When
+`dryRunIncomplete` is `true` the check did not even finish its budget, so an empty `notices` list is
+not a clean bill of health.
+
+`qts.strategyState(strategyId)` also reports what market data the compiled class needs
+(`requiredSources`) and when the live compilation was produced (`compiledAt`). A verdict is
+superseded by recompilation: when `compiledAt` is later than `validatedAt`, the recorded verdict
+describes bytecode that is no longer what would run — call `validateStrategy` again. HTTP errors
+surface as `QTSError`; a `404` means only that no such strategy is registered for you.
+
 ## Hourly tickers/klines downloads
 
 Stream one hour of raw ticker or kline data for an instrument. The default wire format is
@@ -255,6 +322,15 @@ instruments.forEach(i -> {
             i.getLastPrice());
 });
 ```
+
+`instruments(exchangeId)` is the default-segment shortcut and lists `spot`. Pass a segment
+explicitly to list another one:
+
+```java
+List<InstrumentDetail> perps = qts.instruments("binancefutures", "futures");
+```
+
+Both overloads unwrap the same HAL envelope and return `List<InstrumentDetail>`.
 
 HTTP errors surface as `QTSError`. Responses reflect live platform state — no client-side cache.
 
@@ -347,6 +423,14 @@ JWT_API_TOKEN=... QTSURFER_API_URL=... QTSURFER_TEST_VERBOSE=1 mvn -B -Dtest='*I
 - [ ] TTL cache for `exchanges` / `instruments`
 - [ ] Loaders for `signalsUrl` Parquet into `duckdb-java` / `lastra-java`
 - [ ] Optional reactive adapters (Reactor / RxJava)
+
+### v0.5 — Strategy introspection ✅
+
+- [x] `qts.validateStrategy(strategyId)` → `ValidationOutcome` — a sealed `Queued` / `NotQueued`
+      answer to "did this call start a check?", kept separate from "is there a verdict?"
+- [x] `qts.strategyState(strategyId)` → `StrategyState` with verdict, `detail`, engine `notices`, and
+      `requiredSources`
+- [x] `qts.instruments(exchangeId, segment)` → per-segment instrument listing (`spot` / `futures`)
 
 ## License
 

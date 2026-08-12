@@ -22,6 +22,12 @@ class ExchangesTest {
   }
 
   @Test
+  void segmentInstrumentsMethodReturnsListType() throws NoSuchMethodException {
+    var method = QTSurfer.class.getMethod("instruments", String.class, String.class);
+    assertEquals(List.class, method.getReturnType());
+  }
+
+  @Test
   void instrumentsRejectsNullExchangeId() {
     QTSurfer qts = QTSurfer.builder()
         .baseUrl("https://api.qtsurfer.com/v1")
