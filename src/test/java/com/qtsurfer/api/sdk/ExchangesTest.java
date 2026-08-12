@@ -24,7 +24,7 @@ class ExchangesTest {
   @Test
   void instrumentsRejectsNullExchangeId() {
     QTSurfer qts = QTSurfer.builder()
-        .baseUrl("https://api.qtsurfer.net/v1")
+        .baseUrl("https://api.qtsurfer.com/v1")
         .token("test-token")
         .build();
     assertThrows(NullPointerException.class, () -> qts.instruments(null));
