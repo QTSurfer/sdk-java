@@ -244,6 +244,53 @@ public final class QTSurfer {
     }
 
     /**
+     * Read what the platform holds for a backtest run, addressed by the
+     * exchange it ran on and the id of its execute job. Synchronous — blocks
+     * the calling thread for the HTTP round trip.
+     *
+     * <p><strong>The run does not have to be one this process started.</strong>
+     * Every other route to a run's numbers in this SDK goes through the handle
+     * {@link #backtest(BacktestRequest)} or
+     * {@link Strategy#backtest(BacktestRequest)} hands back, and that handle
+     * only exists in the process that submitted the run.
+     * A job id that arrived from anywhere else — another client, another
+     * session, this one before a restart — has no handle behind it, and this
+     * is how to ask the platform about it directly. It compiles nothing,
+     * prepares nothing, submits nothing, and starts no second run.
+     *
+     * <p><strong>A run that ended badly is an answer, not a failure of this
+     * call.</strong> The {@link BacktestOutcome} handed back says which of
+     * four things the platform is reporting — the run finished, it failed, it
+     * was cancelled, or it is still going and has nothing final to say yet.
+     * Only a job the platform does not recognise for this caller raises, as a
+     * {@code 404}. That is a deliberate departure from
+     * {@link Backtest#await()}, which completes exceptionally on a failed or
+     * aborted run: a caller waiting for a result it asked for is not getting
+     * one, whereas a caller asking what happened to a job is.
+     *
+     * <p>Waiting for a run to finish remains {@link Backtest#await()}'s job,
+     * on the process that started it. This does not poll — it is a snapshot,
+     * and {@link BacktestOutcome.InProgress} means ask again later.
+     *
+     * <p><strong>{@code exchangeId} is required and cannot be guessed.</strong>
+     * A run's result is addressed under the exchange it was submitted against,
+     * so a job id on its own does not identify the resource and there is
+     * nothing sensible to default the exchange to. An id carried to the wrong
+     * exchange does not name the same run.
+     *
+     * @param exchangeId exchange the run was submitted against (e.g. {@code "binance"})
+     * @param jobId      id of the execute job, as carried by
+     *                   {@link Backtest#id()} on the process that submitted it
+     * @throws QTSError on HTTP 4xx/5xx (including the {@code 404} above) or
+     *                  transport failure
+     */
+    public BacktestOutcome backtestResult(String exchangeId, String jobId) {
+        Objects.requireNonNull(exchangeId, "exchangeId");
+        Objects.requireNonNull(jobId, "jobId");
+        return backtestWorkflow.readResult(exchangeId, jobId);
+    }
+
+    /**
      * Equivalent to {@link #sweep(SweepRequest, SweepOptions)} with
      * {@link SweepOptions#defaults()}.
      *
@@ -422,9 +469,9 @@ public final class QTSurfer {
     /**
      * One-call setup: exchange an API key for a short-lived JWT and return
      * an {@link AuthenticatedClient} that mirrors this SDK's surface
-     * (compile / validateStrategy / strategyState / backtest / sweep /
-     * exchanges / instruments / tickers / klines) with automatic
-     * refresh-on-401.
+     * (compile / validateStrategy / strategyState / backtest /
+     * backtestResult / sweep / exchanges / instruments / tickers / klines)
+     * with automatic refresh-on-401.
      *
      * <p>If {@code apikey} is {@code null} or blank, the value is read from
      * the {@code QTSURFER_APIKEY} environment variable.

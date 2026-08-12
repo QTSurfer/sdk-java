@@ -6,6 +6,74 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-08-12
+
+### Added ✨
+
+- **Standalone read of a backtest result.** Both entry points (`QTSurfer` and
+  `AuthenticatedClient`) gain `backtestResult(exchangeId, jobId)` → `BacktestOutcome` — one
+  synchronous read of a run the calling process did not necessarily start. Until now a run's
+  numbers were reachable only through the `Backtest` handle, and that handle exists only where the
+  run was submitted: a job id arriving from another client, another session, or the same process
+  before a restart had no route at all.
+
+  **Why a standalone read exists when the workflow stages deliberately do not.** `prepareBacktest`,
+  `getPrepareStatus` and `executeBacktest` have no standalone method on purpose, and that has not
+  changed. They are stages of a run *you are performing*: they own the dataset lifecycle, preparing
+  answers with the job id of the prepared window, and exposing them would hand the caller that id
+  to hold and pass on to every later call. Reading a result for a job id you were simply *given* is
+  not a stage of anything — it is a query against a resource the platform already holds, the same
+  category as `Sweep.results(...)` and `Sweep.sensitivity(...)`, which are standalone for exactly
+  this reason. It compiles nothing, prepares nothing, and submits nothing.
+
+  `exchangeId` is required and is not defaulted. A run's result is addressed under the exchange it
+  was submitted against, so a job id on its own does not identify the resource — there is nothing
+  sensible to default the exchange to, and an id carried to the wrong exchange does not name the
+  same run.
+
+  **A run that ended badly is an answer, not an exception.** `Backtest.await()` completes
+  exceptionally with `QTSExecutionError` or `QTSCanceledError` on a failed or aborted run, and that
+  is right for a caller waiting on a result it asked for: it is not getting one. A caller asking
+  *what happened to this job* is getting one, so the standalone read reports the ending in its
+  return value instead. New sealed `BacktestOutcome` with the four answers the platform can give —
+  `Completed`, `Failed`, `Aborted`, `InProgress` — plus `state()`, `results()` and a `finished()`
+  shortcut. Only a job id the platform does not recognise raises.
+
+  Those four are not invented: they are the cases `StatusNormalizer` already reduces a job status
+  to, so the read classifies a run by exactly the rule the poll loop stops on. `InProgress` is also
+  where a job the platform cannot describe yet lands — it answers those with an empty body, so that
+  is the one variant whose `state()` can be absent.
+
+  Same reasoning as `ValidationOutcome`, added in 0.11.0: one flat return type was collapsing two
+  independent questions, and a sealed type keeps them apart. Here the questions are *how did this
+  run end* and *what did it produce* — and since the platform always sends the job state, returning
+  the results alone would have thrown away the answer to the first one.
+
+### Changed 🔄
+
+- **Standalone reads now raise `QTSError` rather than `QTSExecutionError`.** This affects
+  `Sweep.results(order)` / `results(order, ranking)`, shipped in 0.12.0, and the new
+  `backtestResult(...)`. `Sweep.sensitivity(...)` already behaved this way and is unchanged.
+
+  `QTSExecutionError` means the execute stage of a run this SDK is performing failed. A read is not
+  performing a run: it never was for `Sweep.results(...)`, and for `backtestResult(...)` a run that
+  failed or was aborted is now a value rather than an exception — so everything either of them can
+  still raise is transport or HTTP. A caller catching the subtype to mean "my run blew up" would
+  have been catching the wrong thing. `QTSExecutionError`'s javadoc has been corrected to say it
+  covers sweeps as well as single backtests, and that reads do not raise it.
+
+  **This is technically breaking**, and worth stating rather than filing as a tidy-up: anyone
+  catching `QTSExecutionError` *specifically* around `Sweep.results(...)` will stop matching. The
+  declared contract does not change — both methods have always documented `@throws QTSError`, the
+  parent — so `catch (QTSError …)` is unaffected, as is any caller that lets it propagate. The
+  practical exposure is nil because 0.12.0 is hours old, and that is exactly why it is being
+  corrected now: the same change against an established release would cost real users.
+
+  The polling paths are untouched and still raise `QTSExecutionError`: a transport fault while
+  driving a run *is* that run's execute stage failing. Both workflows keep one shared call site per
+  endpoint and pass the error type in, so the read and the poll cannot drift apart on the route
+  while still differing on what a fault there means.
+
 ## [0.12.0] — 2026-08-12
 
 ### Added ✨

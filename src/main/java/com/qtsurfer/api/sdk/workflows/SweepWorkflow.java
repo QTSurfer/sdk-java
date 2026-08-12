@@ -203,7 +203,8 @@ public final class SweepWorkflow {
 
         return new Sweep(
                 accepted, requestId, strategyId, resultFuture, publisher, state, cancelHook,
-                (order, ranking) -> readResults(req.exchangeId(), requestId, sweepId, order, ranking),
+                (order, ranking) -> readResults(
+                        req.exchangeId(), requestId, sweepId, order, ranking, QTSError::new),
                 objective -> readSensitivity(req.exchangeId(), requestId, sweepId, objective));
     }
 
@@ -217,7 +218,8 @@ public final class SweepWorkflow {
         ExecuteSweepResult finalResult = Polling.poll(
                 BacktestStage.EXECUTING.toString(),
                 opts.pollInterval(), opts.maxPollInterval(), opts.timeout(),
-                () -> readResults(req.exchangeId(), requestId, sweepId, opts.order(), opts.ranking()),
+                () -> readResults(req.exchangeId(), requestId, sweepId,
+                        opts.order(), opts.ranking(), QTSExecutionError::new),
                 r -> StatusNormalizer.normalize(statusOf(r)) == Normalized.IN_PROGRESS,
                 r -> progressSink.accept(new SweepProgressEvent(
                         BacktestStage.EXECUTING, percentOf(r), null, r == null ? null : r.getProgress())));
@@ -235,17 +237,26 @@ public final class SweepWorkflow {
      * One read of the sweep's leaderboard. Both the background poll and the
      * handle's re-read go through here, so the view parameters are encoded in
      * exactly one place.
+     *
+     * <p>The error type is the caller's to choose, and it is the one thing the
+     * two paths do not share. A transport fault under the poll is the sweep a
+     * caller is waiting on failing to advance, which is what
+     * {@link QTSExecutionError} means; the same fault under
+     * {@link Sweep#results(SweepOrder, SweepRanking)} is just a read that did
+     * not arrive, and is raised as a plain {@link QTSError} — the type
+     * {@link #readSensitivity} has always used for the sibling read.
      */
     private ExecuteSweepResult readResults(
             String exchangeId, String requestId, String sweepId,
-            SweepOrder order, SweepRanking ranking) {
+            SweepOrder order, SweepRanking ranking,
+            java.util.function.BiFunction<String, Throwable, ? extends QTSError> errorCtor) {
         return ApiCalls.call(
                 () -> backtestingApi.getSweepResult(
                         exchangeId, TICKER, requestId, sweepId, null,
                         order != null ? order.wire() : null,
                         ranking != null ? ranking.wire() : null),
                 "Sweep result request failed",
-                QTSExecutionError::new);
+                errorCtor);
     }
 
     private SweepSensitivity readSensitivity(

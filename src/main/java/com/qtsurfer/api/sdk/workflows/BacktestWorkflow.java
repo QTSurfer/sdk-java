@@ -11,6 +11,7 @@ import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.sdk.Backtest;
 import com.qtsurfer.api.sdk.Backtest.State;
 import com.qtsurfer.api.sdk.BacktestOptions;
+import com.qtsurfer.api.sdk.BacktestOutcome;
 import com.qtsurfer.api.sdk.BacktestProgress;
 import com.qtsurfer.api.sdk.BacktestRequest;
 import com.qtsurfer.api.sdk.BacktestStage;
@@ -20,6 +21,7 @@ import com.qtsurfer.api.sdk.errors.QTSError;
 import com.qtsurfer.api.sdk.errors.QTSExecutionError;
 import com.qtsurfer.api.sdk.errors.QTSStrategyCompileError;
 import com.qtsurfer.api.sdk.internal.ApiCalls;
+import com.qtsurfer.api.sdk.internal.BacktestOutcomes;
 import com.qtsurfer.api.sdk.internal.Polling;
 import com.qtsurfer.api.sdk.internal.Preparation;
 import com.qtsurfer.api.sdk.internal.StatusNormalizer;
@@ -103,6 +105,55 @@ public final class BacktestWorkflow {
                 .thenCompose(Backtest::await);
     }
 
+    /**
+     * Read an execute job's result as the platform holds it right now, without
+     * running or re-running anything.
+     *
+     * <p>Classified through {@link BacktestOutcomes}, which applies the same
+     * {@link StatusNormalizer} rule this class's own poll stops on: the read
+     * and the poll agree on what a status means because they ask the same
+     * question of the same helper.
+     *
+     * <p>Nothing here raises for a run that ended badly. The poll converts
+     * {@code FAILED} and {@code ABORTED} into exceptions because a
+     * {@code backtest(...)} caller asked for a result and is not getting one;
+     * a caller who asked what happened to a job <em>is</em> getting an answer,
+     * so it travels in the return value.
+     *
+     * @param exchangeId the exchange the run was submitted against
+     * @param jobId      the execute job id
+     * @return what the platform has to say about the run
+     * @throws QTSError on HTTP 4xx/5xx or transport failure — a plain
+     *                  {@link QTSError}, not the {@link QTSExecutionError} the
+     *                  poll raises, because nothing this read can raise is
+     *                  about an execution any more
+     */
+    public BacktestOutcome readResult(String exchangeId, String jobId) {
+        return BacktestOutcomes.of(readJobResult(exchangeId, jobId, QTSError::new));
+    }
+
+    /**
+     * One read of the execute-result resource. Both the background poll and
+     * {@link #readResult} go through here, so the route is encoded in exactly
+     * one place. Returns the whole response because the poll needs the state
+     * the unwrapped result does not carry.
+     *
+     * <p>The error type is the caller's to choose, and it is the one thing the
+     * two paths do not share. A transport fault under the poll is the execute
+     * stage of a run in progress failing, which is what
+     * {@link QTSExecutionError} means; the same fault under a standalone read
+     * is just a read that did not arrive.
+     */
+    private BacktestJobResult readJobResult(
+            String exchangeId,
+            String jobId,
+            java.util.function.BiFunction<String, Throwable, ? extends QTSError> errorCtor) {
+        return call(
+                () -> backtestingApi.getBacktestResult(exchangeId, TICKER, jobId),
+                "Execution result request failed",
+                errorCtor);
+    }
+
     private ExecuteBacktestRequest buildExecuteBody(
             BacktestRequest req, Strategy strategy, String prepareJobId) {
         ExecuteBacktestRequest body = new ExecuteBacktestRequest()
@@ -173,10 +224,7 @@ public final class BacktestWorkflow {
                 BacktestStage.EXECUTING,
                 opts,
                 percent -> progressSink.accept(new BacktestProgress(BacktestStage.EXECUTING, percent)),
-                () -> call(
-                        () -> backtestingApi.getBacktestResult(req.exchangeId(), TICKER, executeJobId),
-                        "Execution result request failed",
-                        QTSExecutionError::new),
+                () -> readJobResult(req.exchangeId(), executeJobId, QTSExecutionError::new),
                 r -> StatusNormalizer.normalize(statusOf(r)) == Normalized.IN_PROGRESS);
 
         Normalized norm = StatusNormalizer.normalize(statusOf(finalResult));

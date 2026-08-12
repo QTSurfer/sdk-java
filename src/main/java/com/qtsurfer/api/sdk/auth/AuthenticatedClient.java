@@ -13,6 +13,7 @@ import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.client.model.StrategyState;
 import com.qtsurfer.api.sdk.BacktestOptions;
+import com.qtsurfer.api.sdk.BacktestOutcome;
 import com.qtsurfer.api.sdk.BacktestRequest;
 import com.qtsurfer.api.sdk.DownloadFormat;
 import com.qtsurfer.api.sdk.Strategy;
@@ -51,13 +52,14 @@ import java.util.function.Supplier;
  *
  * <p>Exposes the same workflow surface as {@code QTSurfer}: {@code compile},
  * {@code validateStrategy}, {@code strategyState}, {@code backtest},
- * {@code sweep}, {@code exchanges}, {@code instruments}, {@code tickers},
- * {@code klines}.
+ * {@code backtestResult}, {@code sweep}, {@code exchanges},
+ * {@code instruments}, {@code tickers}, {@code klines}.
  * Method semantics are unchanged — only the bearer token management differs.
  *
  * <p>Refresh policy: a 401 from any call routed through the generated
- * api-client (prepare, execute, result polling, strategy validation and
- * lookup, exchanges, instruments, tickers, klines) triggers exactly one
+ * api-client (prepare, execute, result polling and standalone result reads,
+ * strategy validation and lookup, exchanges, instruments, tickers, klines)
+ * triggers exactly one
  * {@code POST /v1/auth/token}
  * exchange, then the original call is retried once; a second 401 is
  * surfaced to the caller. The one exception is {@code compile}, which talks
@@ -342,6 +344,59 @@ public final class AuthenticatedClient {
     public CompletableFuture<ResultMap> backtest(BacktestRequest request, BacktestOptions opts) {
         Objects.requireNonNull(request, "request");
         return withRefreshOn401Async(() -> backtestWorkflow.runFull(request, opts));
+    }
+
+    /**
+     * Read what the platform holds for a backtest run, addressed by the
+     * exchange it ran on and the id of its execute job. Synchronous — blocks
+     * the calling thread for the HTTP round trip. Participates in the
+     * session's refresh-on-401 policy: an unauthorized response triggers one
+     * token refresh and one retry of this call. The call only reads, so that
+     * retry starts nothing extra.
+     *
+     * <p><strong>The run does not have to be one this session started.</strong>
+     * Every other route to a run's numbers in this SDK goes through the handle
+     * {@link #backtest(BacktestRequest)} or
+     * {@link Strategy#backtest(BacktestRequest)} hands back, and that handle
+     * only exists in the process that submitted the run. A job id that arrived
+     * from anywhere else — another client, another session, this one before a
+     * restart — has no handle behind it, and this is how to ask the platform
+     * about it directly. It compiles nothing, prepares nothing, submits
+     * nothing, and starts no second run.
+     *
+     * <p><strong>A run that ended badly is an answer, not a failure of this
+     * call.</strong> The {@link BacktestOutcome} handed back says which of
+     * four things the platform is reporting — the run finished, it failed, it
+     * was cancelled, or it is still going and has nothing final to say yet.
+     * Only a job the platform does not recognise for this caller raises, as a
+     * {@code 404}. That is a deliberate departure from
+     * {@link com.qtsurfer.api.sdk.Backtest#await()}, which completes
+     * exceptionally on a failed or aborted run: a caller waiting for a result
+     * it asked for is not getting one, whereas a caller asking what happened
+     * to a job is.
+     *
+     * <p>Waiting for a run to finish remains
+     * {@link com.qtsurfer.api.sdk.Backtest#await()}'s job, on the process that
+     * started it. This does not poll — it is a snapshot, and
+     * {@link BacktestOutcome.InProgress} means ask again later.
+     *
+     * <p><strong>{@code exchangeId} is required and cannot be guessed.</strong>
+     * A run's result is addressed under the exchange it was submitted against,
+     * so a job id on its own does not identify the resource and there is
+     * nothing sensible to default the exchange to. An id carried to the wrong
+     * exchange does not name the same run.
+     *
+     * @param exchangeId exchange the run was submitted against (e.g. {@code "binance"})
+     * @param jobId      id of the execute job, as carried by
+     *                   {@link com.qtsurfer.api.sdk.Backtest#id()} on the
+     *                   process that submitted it
+     * @throws QTSError on HTTP 4xx/5xx (including the {@code 404} above) or
+     *                  transport failure
+     */
+    public BacktestOutcome backtestResult(String exchangeId, String jobId) {
+        Objects.requireNonNull(exchangeId, "exchangeId");
+        Objects.requireNonNull(jobId, "jobId");
+        return withRefreshOn401(() -> backtestWorkflow.readResult(exchangeId, jobId));
     }
 
     /** Equivalent to {@link #sweep(SweepRequest, SweepOptions)} with {@link SweepOptions#defaults()}.

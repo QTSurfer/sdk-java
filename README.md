@@ -212,7 +212,7 @@ exception, since it is the auth path itself.
 | `prepareBacktest` | Via workflow — `backtest(...)` and `sweep(...)` |
 | `getPrepareStatus` | Via workflow — the prepare poll |
 | `executeBacktest` | Via workflow — `backtest(...)` |
-| `getBacktestResult` | Via workflow — the execute poll behind `Backtest.await()` |
+| `getBacktestResult` | Via workflow (the execute poll behind `Backtest.await()`) and direct — `backtestResult(exchangeId, jobId)` reads a run this process did not start |
 | `cancelBacktest` | Direct — `Backtest.cancel()` |
 | `executeSweep` | Via workflow — `sweep(...)` |
 | `getSweepResult` | Via workflow (the leaderboard poll) and direct — `Sweep.results(...)` re-reads it under another view |
@@ -226,6 +226,12 @@ what the execute and sweep endpoints then consume. A standalone `prepare()` woul
 caller to hold and pass on to every later call. Preparing is idempotent — the same instrument and
 window always resolve to the same job — so a workflow that prepares on every call duplicates no
 work, and the id never has to leave it. Not a gap.
+
+The two rows reading **"via workflow … and direct"** are not exceptions to that. Reading a
+leaderboard, or the result of a run that already exists, is not a stage of a run you are
+performing: it is a query against a resource the platform already holds, addressed by ids you were
+handed rather than ids a workflow has to keep alive. That is why `Sweep.results(...)` and
+`backtestResult(...)` are standalone while `prepare()` and `executeBacktest()` are not.
 
 **Maintenance contract.** When the spec gains an operation, it gains a row here. If this layer
 deliberately does not wrap it, the row says so and why.
@@ -245,6 +251,39 @@ Progress is emitted:
 
 - On every stage transition (`percent == null`).
 - After each poll where the backend reports `size > 0` (`percent` in 0–100).
+
+### Reading a run you did not start
+
+The `Backtest` handle only exists in the process that submitted the run. When a job id reaches you
+from somewhere else — another client, another session, the same process before a restart — ask the
+platform directly:
+
+```java
+import com.qtsurfer.api.sdk.BacktestOutcome;
+
+BacktestOutcome outcome = qts.backtestResult("binance", "5f3c…");
+
+if (outcome instanceof BacktestOutcome.Completed c) {
+    System.out.println("PnL: " + c.results().getPnlTotal());
+} else if (outcome instanceof BacktestOutcome.Failed f) {
+    System.out.println("Failed: " + f.state().getStatusDetail());
+} else if (outcome instanceof BacktestOutcome.Aborted) {
+    System.out.println("Cancelled");
+} else {
+    System.out.println("Still running; ask again later");
+}
+```
+
+One read, nothing submitted. **A run that ended badly is an answer here, not an exception** — the
+opposite of `Backtest.await()`, which raises on a failed or aborted run. Someone waiting for a
+result they asked for is not getting one; someone asking *what happened to this job* is, so
+`BacktestOutcome` carries the four cases (finished, failed, cancelled, not yet) as values and only
+an id the platform does not recognise raises. `finished()` collapses the first three when the
+distinction does not matter.
+
+`exchangeId` is required and is not defaulted: a run's result is addressed under the exchange it
+was submitted against, so a job id on its own does not identify it. To *wait* for a run you started
+yourself, use `Backtest.await()` instead — this is a snapshot and does not poll.
 
 ## Strategy validation
 
@@ -521,17 +560,18 @@ try {
     qts.backtest(req).join();
 } catch (CompletionException e) {
     Throwable cause = e.getCause();
-    switch (cause) {
-        case QTSStrategyCompileError x -> log.error("Compile failed: {}", x.getMessage());
-        case QTSPreparationError x     -> log.error("Data prep failed: {}", x.getMessage());
-        case QTSExecutionError x       -> log.error("Execution failed: {}", x.getMessage());
-        case QTSDownloadError x        -> log.error("Download failed: {}", x.getMessage());
-        case QTSTimeoutError x         -> log.error("Stage timed out: {}", x.getMessage());
-        case QTSCanceledError x        -> log.error("Canceled");
-        default                        -> throw e;
-    }
+    if (cause instanceof QTSStrategyCompileError x) log.error("Compile failed: {}", x.getMessage());
+    else if (cause instanceof QTSPreparationError x) log.error("Data prep failed: {}", x.getMessage());
+    else if (cause instanceof QTSExecutionError x)   log.error("Execution failed: {}", x.getMessage());
+    else if (cause instanceof QTSDownloadError x)    log.error("Download failed: {}", x.getMessage());
+    else if (cause instanceof QTSTimeoutError x)     log.error("Stage timed out: {}", x.getMessage());
+    else if (cause instanceof QTSCanceledError)      log.error("Canceled");
+    else throw e;
 }
 ```
+
+Written as an `instanceof` chain because this SDK targets JDK 17, where pattern matching for
+`switch` is still a preview feature. On 21 or newer the same branches read better as a `switch`.
 
 ## Cancellation
 

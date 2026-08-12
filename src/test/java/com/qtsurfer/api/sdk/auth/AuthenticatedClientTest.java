@@ -2,6 +2,8 @@ package com.qtsurfer.api.sdk.auth;
 
 import com.qtsurfer.api.client.model.AuthTokenResponse;
 import com.qtsurfer.api.client.model.InstrumentDetail;
+import com.qtsurfer.api.client.model.ResultMap;
+import com.qtsurfer.api.sdk.BacktestOutcome;
 import com.qtsurfer.api.sdk.QTSurfer;
 import com.qtsurfer.api.sdk.ValidationOutcome;
 import com.qtsurfer.api.sdk.errors.QTSAuthError;
@@ -42,6 +44,8 @@ class AuthenticatedClientTest {
     private final AtomicInteger tickerCalls = new AtomicInteger();
     private final List<Integer> validateStatuses = new ArrayList<>();
     private final AtomicInteger validateCalls = new AtomicInteger();
+    private final List<Integer> resultStatuses = new ArrayList<>();
+    private final AtomicInteger resultCalls = new AtomicInteger();
 
     record RequestRecord(String path, String method, String authorization, String apikey) {}
 
@@ -87,6 +91,15 @@ class AuthenticatedClientTest {
                         : validateStatuses.get(validateStatuses.size() - 1);
                 body = (status == 202
                         ? "{\"strategyId\":\"s1\",\"validation\":\"pending\"}"
+                        : "{\"error\":\"" + status + "\"}").getBytes(StandardCharsets.UTF_8);
+                ctype = "application/json";
+            } else if (path.contains("/execute/")) {
+                int idx = resultCalls.getAndIncrement();
+                status = idx < resultStatuses.size()
+                        ? resultStatuses.get(idx)
+                        : resultStatuses.get(resultStatuses.size() - 1);
+                body = (status == 200
+                        ? "{\"state\":{\"status\":\"Completed\"},\"results\":{\"pnlTotal\":42.5}}"
                         : "{\"error\":\"" + status + "\"}").getBytes(StandardCharsets.UTF_8);
                 ctype = "application/json";
             } else if (path.endsWith("/instruments")) {
@@ -282,6 +295,29 @@ class AuthenticatedClientTest {
                 .orElseThrow();
         assertEquals("POST", retried.method());
         assertEquals("/v1/strategy/s1/validate", retried.path());
+        assertEquals("Bearer jwt-2", retried.authorization());
+    }
+
+    @Test
+    void backtestResultParticipatesInRefreshOn401() {
+        tokenResponses.add(jwt("jwt-1", "free"));
+        tokenResponses.add(jwt("jwt-2", "free"));
+        resultStatuses.add(401);
+        resultStatuses.add(200);
+
+        AuthenticatedClient session = QTSurfer.authenticate("ak", opts());
+        BacktestOutcome outcome = session.backtestResult("binance", "exec-1");
+
+        ResultMap result = assertInstanceOf(BacktestOutcome.Completed.class, outcome).results();
+        assertEquals(42.5, result.getPnlTotal());
+        assertEquals(2, tokenCalls.get());
+        assertEquals(2, resultCalls.get());
+        RequestRecord retried = requests.stream()
+                .filter(r -> r.path().contains("/execute/"))
+                .reduce((a, b) -> b)
+                .orElseThrow();
+        assertEquals("GET", retried.method());
+        assertEquals("/v1/backtest/binance/ticker/execute/exec-1", retried.path());
         assertEquals("Bearer jwt-2", retried.authorization());
     }
 

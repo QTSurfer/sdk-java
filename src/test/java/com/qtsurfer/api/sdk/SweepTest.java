@@ -6,6 +6,7 @@ import com.qtsurfer.api.client.model.ExecuteSweepResult;
 import com.qtsurfer.api.client.model.SweepRunRow;
 import com.qtsurfer.api.client.model.SweepSensitivity;
 import com.qtsurfer.api.client.model.WalkForwardResult;
+import com.qtsurfer.api.sdk.errors.QTSError;
 import com.qtsurfer.api.sdk.errors.QTSExecutionError;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -62,6 +63,7 @@ class SweepTest {
     private final AtomicReference<String> lastSweepResult = new AtomicReference<>();
     private final AtomicReference<String> sweepAcceptedBody = new AtomicReference<>(SWEEP_ACCEPTED);
     private final AtomicInteger sweepAcceptedStatus = new AtomicInteger(202);
+    private final AtomicInteger sweepResultStatus = new AtomicInteger(200);
     private final AtomicReference<String> sensitivityBody = new AtomicReference<>("{}");
     private final AtomicReference<String> cancelledResult = new AtomicReference<>();
     private final AtomicBoolean cancelRequested = new AtomicBoolean();
@@ -106,7 +108,8 @@ class SweepTest {
         }
         String next = sweepResults.poll();
         if (next != null) lastSweepResult.set(next);
-        return new Response(200, Optional.ofNullable(lastSweepResult.get()).orElse("{}"));
+        return new Response(
+                sweepResultStatus.get(), Optional.ofNullable(lastSweepResult.get()).orElse("{}"));
     }
 
     private record Response(int status, String body) {}
@@ -259,6 +262,32 @@ class SweepTest {
         assertEquals(44, sweep.accepted().getTotalRuns());
         assertFalse(sweep.accepted().getQueued(), "an identical sweep already existed");
         sweep.await().get(10, TimeUnit.SECONDS);
+    }
+
+    /**
+     * A failing re-read is a failing read, not a failing sweep. It raises a
+     * plain {@link com.qtsurfer.api.sdk.errors.QTSError} — the type
+     * {@link Sweep#sensitivity()} has always used for the sibling read — and
+     * deliberately not {@link QTSExecutionError}, which belongs to a run being
+     * performed. The background poll behind {@link Sweep#await()} keeps
+     * raising the execution error; only the handle's own read narrowed.
+     */
+    @Test
+    void aFailingLeaderboardRereadSurfacesAsAPlainQtsError() throws Exception {
+        sweepResults.add("""
+                {"sweepId":"swp-1","status":"COMPLETED","objective":"sharpe","order":"ranked",\
+                "ranking":"plateau","progress":%s,"leaderboardSize":1,"truncated":false,\
+                "leaderboard":[%s]}""".formatted(progress(44, 44), row(0, 1.0)));
+
+        Sweep sweep = qts.sweep(request().build(), fastOpts().build()).get(10, TimeUnit.SECONDS);
+        sweep.await().get(10, TimeUnit.SECONDS);
+
+        sweepResultStatus.set(500);
+
+        QTSError ex = assertThrows(QTSError.class, () -> sweep.results(SweepOrder.NATURAL));
+        assertFalse(ex instanceof QTSExecutionError, "a read never fails an execution");
+        assertTrue(ex.getMessage().contains("Sweep result request failed"));
+        assertTrue(ex.getMessage().contains("HTTP 500"));
     }
 
     @Test
