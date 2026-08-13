@@ -31,6 +31,8 @@ import com.qtsurfer.api.sdk.workflows.SweepWorkflow;
 
 import java.io.InputStream;
 import java.net.http.HttpRequest;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -56,19 +58,32 @@ import java.util.function.Supplier;
  * {@code instruments}, {@code tickers}, {@code klines}.
  * Method semantics are unchanged — only the bearer token management differs.
  *
- * <p>Refresh policy: a 401 from any call routed through the generated
- * api-client (prepare, execute, result polling and standalone result reads,
- * strategy validation and lookup, exchanges, instruments, tickers, klines)
- * triggers exactly one
- * {@code POST /v1/auth/token}
- * exchange, then the original call is retried once; a second 401 is
- * surfaced to the caller. The one exception is {@code compile}, which talks
- * to its endpoint directly and does not participate in this retry — see
- * {@link #compile(String, BacktestOptions)}.
+ * <p>Refresh policy: every call first checks the cached token's known
+ * {@code expires_in} window and proactively re-exchanges it (same
+ * {@code POST /v1/auth/token} call) a short margin before it would expire —
+ * a session left idle past an hour mints a new token on the next call
+ * instead of sending one already stale. That covers TTL expiry, but not a
+ * token invalidated some other way; for that, a 401 from any call routed
+ * through the generated api-client (prepare, execute, result polling and
+ * standalone result reads, strategy validation and lookup, exchanges,
+ * instruments, tickers, klines) <em>and</em> {@code compile} (which talks to
+ * its endpoint directly but carries the same {@code ApiException} cause on
+ * a 401) triggers one more {@code POST /v1/auth/token} exchange, then the
+ * original call is retried once; a second 401 is surfaced to the caller.
  */
 public final class AuthenticatedClient {
 
     static final String APIKEY_ENV_VAR = "QTSURFER_APIKEY";
+
+    /** Fallback TTL when a token response omits {@code expires_in}. */
+    private static final long DEFAULT_TTL_SECONDS = 3600;
+
+    /**
+     * Refresh this far ahead of the token's known expiry, so the call that
+     * triggers a proactive refresh doesn't itself race the token going
+     * stale mid-flight.
+     */
+    private static final Duration REFRESH_SKEW = Duration.ofSeconds(30);
 
     private final AuthOptions options;
     private final AuthApi authApi;
@@ -78,6 +93,15 @@ public final class AuthenticatedClient {
     private final ExchangeApi exchangeApi;
     private final StrategyApi strategyApi;
     private final AtomicReference<AuthTokenResponse> cached = new AtomicReference<>();
+
+    /**
+     * When the token in {@link #cached} should be treated as stale, for a
+     * token minted by this session via {@link #refresh()}. {@code null}
+     * for a token seeded from the {@link TokenStore} instead — its actual
+     * remaining TTL is unknown, so it is trusted at face value the same
+     * way it always has been (unchanged behavior for that path).
+     */
+    private final AtomicReference<Instant> expiresAt = new AtomicReference<>();
 
     AuthenticatedClient(
             AuthOptions options,
@@ -118,6 +142,7 @@ public final class AuthenticatedClient {
             throw new QTSAuthError("authenticate() returned an empty response");
         }
         cached.set(fresh);
+        expiresAt.set(computeExpiry(fresh));
         mirror();
         options.store().save(fresh);
         return fresh;
@@ -125,11 +150,21 @@ public final class AuthenticatedClient {
 
     /**
      * Return the cached token, seeding from the {@link TokenStore} on first
-     * use, and minting a new one if neither cache nor store hold one.
+     * use, minting a new one if neither cache nor store hold one, and
+     * proactively re-minting one this session already minted once its
+     * {@code expires_in} window (minus {@link #REFRESH_SKEW}) has elapsed —
+     * so a session idle past that window mints on the next call instead of
+     * sending a token the platform will reject.
      */
     public AuthTokenResponse ensureToken() {
         AuthTokenResponse t = cached.get();
-        if (t != null) return t;
+        if (t != null) {
+            Instant exp = expiresAt.get();
+            if (exp == null || Instant.now().isBefore(exp)) {
+                return t;
+            }
+            return refresh();
+        }
         AuthTokenResponse stored = options.store().load();
         if (stored != null) {
             cached.set(stored);
@@ -142,8 +177,17 @@ public final class AuthenticatedClient {
     /** Drop the cached token (in memory and in the store). */
     public void clear() {
         cached.set(null);
+        expiresAt.set(null);
         mirror();
         options.store().clear();
+    }
+
+    private static Instant computeExpiry(AuthTokenResponse token) {
+        Integer seconds = token.getExpiresIn();
+        long ttl = (seconds != null && seconds > 0) ? seconds : DEFAULT_TTL_SECONDS;
+        Duration window = Duration.ofSeconds(ttl).minus(REFRESH_SKEW);
+        if (window.isNegative()) window = Duration.ZERO;
+        return Instant.now().plus(window);
     }
 
     // ---- Workflow surface (mirrors QTSurfer) ----
@@ -167,15 +211,17 @@ public final class AuthenticatedClient {
      * {@code opts.onProgress()} is used; polling and timeout settings do
      * not apply to this stage.
      *
-     * <p>Two behaviors this session normally guarantees do not apply here:
-     * a {@code 401} from the compile endpoint is <em>not</em> retried
-     * after a token refresh (the endpoint is called directly rather than
-     * through the generated client, so the failure is never recognized as
-     * unauthorized), and token resolution itself happens synchronously
-     * before the request is sent — on a session with no cached or stored
-     * token, this call blocks to mint one and throws
-     * {@link com.qtsurfer.api.sdk.errors.QTSAuthError} directly rather
-     * than through the returned future.
+     * <p>Participates in the session's refresh-on-401 policy the same as
+     * every other call — both the proactive TTL check before the request is
+     * sent and one retry after a reactive refresh if the platform still
+     * returns {@code 401} (the compile endpoint is called directly rather
+     * than through the generated client, but its {@code 401} carries the
+     * same {@code ApiException} cause so this session recognizes it). One
+     * behavior this session normally guarantees does not apply here: token
+     * resolution happens synchronously before the request is sent — on a
+     * session with no cached or stored token, this call blocks to mint one
+     * and throws {@link com.qtsurfer.api.sdk.errors.QTSAuthError} directly
+     * rather than through the returned future.
      */
     public CompletableFuture<Strategy> compile(String source, BacktestOptions opts) {
         Objects.requireNonNull(source, "source");
@@ -326,11 +372,10 @@ public final class AuthenticatedClient {
      * if execution fails, or {@link com.qtsurfer.api.sdk.errors.QTSTimeoutError}
      * if a stage exceeds its configured timeout.
      *
-     * <p>A {@code 401} during prepare, execute, or result polling triggers
-     * one token refresh and then restarts the <em>entire</em> pipeline
-     * from compile — not just the stage that failed. A {@code 401} from
-     * the compile stage itself is not retried; see
-     * {@link #compile(String, BacktestOptions)}.
+     * <p>A {@code 401} at any stage — including compile, see
+     * {@link #compile(String, BacktestOptions)} — triggers one token
+     * refresh and then restarts the <em>entire</em> pipeline from compile,
+     * not just the stage that failed.
      *
      * <p>This call resolves the session's token synchronously before
      * scheduling any async work: on a session with no cached or stored
@@ -416,15 +461,15 @@ public final class AuthenticatedClient {
      * for why the sweep is one call rather than composable stages, and
      * {@link Sweep#await()} for how to read what it found.
      *
-     * <p>A {@code 401} during prepare or submission triggers one token refresh
-     * and then restarts the <em>entire</em> pipeline from compile — not just
-     * the stage that failed. Two limits are worth knowing: a {@code 401} from
-     * the compile stage itself is not retried (see
-     * {@link #compile(String, BacktestOptions)}), and neither is one raised by
-     * the background leaderboard poll, which starts after this future has
-     * already resolved and surfaces on {@link Sweep#await()} instead. The
-     * handle-scoped {@link Sweep#sensitivity()} and {@link Sweep#cancel()} sit
-     * outside the policy for the same reason.
+     * <p>A {@code 401} during compile (see
+     * {@link #compile(String, BacktestOptions)}), prepare, or submission
+     * triggers one token refresh and then restarts the <em>entire</em>
+     * pipeline from compile — not just the stage that failed. One limit is
+     * worth knowing: this does not cover the background leaderboard poll,
+     * which starts after this future has already resolved and surfaces on
+     * {@link Sweep#await()} instead. The handle-scoped
+     * {@link Sweep#sensitivity()} and {@link Sweep#cancel()} sit outside the
+     * policy for the same reason.
      *
      * <p>This call resolves the session's token synchronously before
      * scheduling any async work: on a session with no cached or stored token,

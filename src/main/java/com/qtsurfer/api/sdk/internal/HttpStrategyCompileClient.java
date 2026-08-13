@@ -2,6 +2,7 @@ package com.qtsurfer.api.sdk.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.qtsurfer.api.client.invoker.ApiClient;
+import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.sdk.errors.QTSStrategyCompileError;
 
 import java.io.IOException;
@@ -74,6 +75,14 @@ public final class HttpStrategyCompileClient implements StrategyCompileClient {
         // diagnostic, which is what every other 4xx on this endpoint means.
         if (status == 429) {
             throw new QTSStrategyCompileError("Strategy was not compiled, too many compilations in flight; retry later" + detail);
+        }
+        // A 401 also means the source was never judged — the call never got as far as the
+        // compiler. This endpoint is called directly rather than through the generated
+        // client, so it must carry an ApiException cause itself for
+        // AuthenticatedClient's refresh-on-401 policy to recognize and retry it, the same
+        // way every other call in this SDK does.
+        if (status == 401) {
+            throw new QTSStrategyCompileError(context + detail, new ApiException(status, context + detail));
         }
         throw new QTSStrategyCompileError(context + detail);
     }

@@ -46,6 +46,8 @@ class AuthenticatedClientTest {
     private final AtomicInteger validateCalls = new AtomicInteger();
     private final List<Integer> resultStatuses = new ArrayList<>();
     private final AtomicInteger resultCalls = new AtomicInteger();
+    private final List<Integer> compileStatuses = new ArrayList<>();
+    private final AtomicInteger compileCalls = new AtomicInteger();
 
     record RequestRecord(String path, String method, String authorization, String apikey) {}
 
@@ -102,6 +104,15 @@ class AuthenticatedClientTest {
                         ? "{\"state\":{\"status\":\"Completed\"},\"results\":{\"pnlTotal\":42.5}}"
                         : "{\"error\":\"" + status + "\"}").getBytes(StandardCharsets.UTF_8);
                 ctype = "application/json";
+            } else if (path.endsWith("/strategy")) {
+                int idx = compileCalls.getAndIncrement();
+                status = idx < compileStatuses.size()
+                        ? compileStatuses.get(idx)
+                        : compileStatuses.get(compileStatuses.size() - 1);
+                body = (status == 200
+                        ? "{\"strategyId\":\"s1\"}"
+                        : "{\"error\":\"" + status + "\"}").getBytes(StandardCharsets.UTF_8);
+                ctype = "application/json";
             } else if (path.endsWith("/instruments")) {
                 status = 200;
                 body = ("{\"data\":[{\"id\":\"BTC/USDT\",\"base\":\"BTC\",\"quote\":\"USDT\"}],"
@@ -128,8 +139,12 @@ class AuthenticatedClientTest {
     }
 
     private static String jwt(String access, String tier) {
+        return jwt(access, tier, 3600);
+    }
+
+    private static String jwt(String access, String tier, int expiresIn) {
         return "{\"access_token\":\"" + access
-                + "\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"tier\":\""
+                + "\",\"token_type\":\"Bearer\",\"expires_in\":" + expiresIn + ",\"tier\":\""
                 + tier + "\"}";
     }
 
@@ -258,6 +273,64 @@ class AuthenticatedClientTest {
                 () -> session.tickers("binance", "BTC", "USDT", "2026-01-15T10"));
         assertEquals(2, tokenCalls.get());
         assertEquals(2, tickerCalls.get());
+    }
+
+    @Test
+    void proactiveRefreshBeforeExpiryMintsAgainWithoutA401() throws IOException {
+        // expires_in (5s) is well inside the fixed REFRESH_SKEW (30s), so the very first
+        // token is already treated as due for renewal by the time the next call checks it.
+        tokenResponses.add(jwt("jwt-1", "free", 5));
+        tokenResponses.add(jwt("jwt-2", "free"));
+
+        AuthenticatedClient session = QTSurfer.authenticate("ak", opts());
+        assertEquals("jwt-1", session.token().getAccessToken());
+
+        List<InstrumentDetail> instruments = session.instruments("binance");
+        assertEquals(1, instruments.size());
+
+        // Refreshed proactively (no 401 anywhere): initial mint + one more before the call.
+        assertEquals(2, tokenCalls.get());
+        assertEquals("jwt-2", session.token().getAccessToken());
+        RequestRecord instrumentsCall = requests.stream()
+                .filter(r -> r.path().endsWith("/instruments"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("Bearer jwt-2", instrumentsCall.authorization());
+    }
+
+    @Test
+    void freshTokenIsNotProactivelyRefreshed() {
+        tokenResponses.add(jwt("jwt-1", "free")); // expires_in: 3600, well outside REFRESH_SKEW
+
+        AuthenticatedClient session = QTSurfer.authenticate("ak", opts());
+        session.instruments("binance");
+
+        // No proactive refresh — the one mint from authenticate() is still good.
+        assertEquals(1, tokenCalls.get());
+        assertEquals("jwt-1", session.token().getAccessToken());
+    }
+
+    @Test
+    void compileParticipatesInRefreshOn401() {
+        // Reproduces the reported bug: compile talks to its endpoint directly rather than
+        // through the generated client, and used to throw with no recognizable cause on a
+        // 401, so this retry never fired for it specifically.
+        tokenResponses.add(jwt("jwt-1", "free"));
+        tokenResponses.add(jwt("jwt-2", "free"));
+        compileStatuses.add(401);
+        compileStatuses.add(200);
+
+        AuthenticatedClient session = QTSurfer.authenticate("ak", opts());
+        var strategy = session.compile("public class S {}").join();
+        assertEquals("s1", strategy.id());
+
+        assertEquals(2, tokenCalls.get());
+        assertEquals(2, compileCalls.get());
+        RequestRecord retried = requests.stream()
+                .filter(r -> r.path().endsWith("/strategy"))
+                .reduce((a, b) -> b)
+                .orElseThrow();
+        assertEquals("Bearer jwt-2", retried.authorization());
     }
 
     @Test
