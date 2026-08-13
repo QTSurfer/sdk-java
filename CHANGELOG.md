@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.13.1] — 2026-08-13
+
+### Fixed 🐛
+
+- **A session left idle past the JWT's `expires_in` window (1hr) started failing every call
+  with a raw `401`.** `ensureToken()` used to return whatever was cached forever; refresh only
+  ever happened reactively, and only for calls routed through the generated client. Every call
+  now checks the cached token's remaining TTL first and proactively re-mints a short skew ahead
+  of expiry, so an idle session mints on the next call instead of sending one already stale.
+- **`compile(...)`'s `401` was never retried**, unlike every other call — it talks to its
+  endpoint directly rather than through the generated client, and threw with no cause the
+  refresh-on-401 policy could recognize. Its `401` now carries the same `ApiException` cause the
+  rest of the SDK's failures do, so it (and `backtest(...)`/`sweep(...)`, whose pipeline compiles
+  through the same client internally) get the same one-refresh-one-retry as everything else.
+
 ## [0.13.0] — 2026-08-12
 
 ### Added ✨
