@@ -8,7 +8,7 @@ import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.InstrumentDetail;
-import com.qtsurfer.api.client.model.ListStrategies200ResponseStrategiesInner;
+import com.qtsurfer.api.client.model.StrategySummary;
 import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.client.model.StrategyState;
 import com.qtsurfer.api.sdk.auth.AuthOptions;
@@ -235,7 +235,7 @@ public final class QTSurfer {
      * @return the caller's registered strategies
      * @throws QTSError on HTTP 4xx/5xx or transport failure
      */
-    public List<ListStrategies200ResponseStrategiesInner> listStrategies() {
+    public List<StrategySummary> listStrategies() {
         try {
             return strategyApi.listStrategies().getStrategies();
         } catch (ApiException e) {

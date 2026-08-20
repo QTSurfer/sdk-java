@@ -3,7 +3,7 @@ package com.qtsurfer.api.sdk;
 import com.qtsurfer.api.client.api.StrategyApi;
 import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.ApiResponse;
-import com.qtsurfer.api.client.model.ListStrategies200ResponseStrategiesInner;
+import com.qtsurfer.api.client.model.StrategySummary;
 import com.qtsurfer.api.client.model.StrategyState;
 import com.qtsurfer.api.sdk.errors.QTSError;
 import com.sun.net.httpserver.HttpExchange;
@@ -254,7 +254,7 @@ class StrategyStateTest {
                 {"strategyId":"s1","compiledAt":"2026-08-19T10:15:00Z","requiredSources":["Ticker"]},\
                 {"strategyId":"s2","compiledAt":"2026-08-12T09:02:11Z"}]}""");
 
-        List<ListStrategies200ResponseStrategiesInner> strategies = qts.listStrategies();
+        List<StrategySummary> strategies = qts.listStrategies();
 
         HttpExchange recorded = exchanges.get(0);
         assertEquals("GET", recorded.getRequestMethod());

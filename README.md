@@ -209,7 +209,7 @@ exception, since it is the auth path itself.
 | `compileStrategy` | Direct — `compile(...)` → `Strategy` |
 | `validateStrategy` | Direct — `validateStrategy(strategyId)` → `ValidationOutcome` |
 | `getStrategy` | Direct — `strategyState(strategyId)` → `StrategyState` |
-| `listStrategies` | Direct — `listStrategies()` → `List<ListStrategies200ResponseStrategiesInner>` |
+| `listStrategies` | Direct — `listStrategies()` → `List<StrategySummary>` |
 | `deleteStrategy` | Direct — `deleteStrategy(strategyId)` |
 | `getStrategyCode` | Direct — `getStrategyCode(strategyId)` → `String` |
 | `prepareBacktest` | Via workflow — `backtest(...)` and `sweep(...)` |
@@ -358,9 +358,9 @@ surface as `QTSError`; a `404` means only that no such strategy is registered fo
 ### Listing, deleting, and reading back a strategy's source
 
 ```java
-import com.qtsurfer.api.client.model.ListStrategies200ResponseStrategiesInner;
+import com.qtsurfer.api.client.model.StrategySummary;
 
-List<ListStrategies200ResponseStrategiesInner> mine = qts.listStrategies();
+List<StrategySummary> mine = qts.listStrategies();
 ```
 
 `listStrategies()` returns every strategy registered under the account and not since deleted,
