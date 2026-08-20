@@ -3,6 +3,7 @@ package com.qtsurfer.api.sdk;
 import com.qtsurfer.api.client.api.StrategyApi;
 import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.ApiResponse;
+import com.qtsurfer.api.client.model.ListStrategies200ResponseStrategiesInner;
 import com.qtsurfer.api.client.model.StrategyState;
 import com.qtsurfer.api.sdk.errors.QTSError;
 import com.sun.net.httpserver.HttpExchange;
@@ -26,9 +27,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@code validateStrategy} / {@code strategyState}. All HTTP
- * traffic is served by a local {@link HttpServer} on a free port — no live
- * network calls.
+ * Unit tests for {@code validateStrategy} / {@code strategyState} /
+ * {@code listStrategies} / {@code deleteStrategy} / {@code getStrategyCode}.
+ * All HTTP traffic is served by a local {@link HttpServer} on a free port —
+ * no live network calls.
  */
 class StrategyStateTest {
 
@@ -240,5 +242,109 @@ class StrategyStateTest {
     @Test
     void strategyStateRejectsNullStrategyId() {
         assertThrows(NullPointerException.class, () -> qts.strategyState(null));
+    }
+
+    // ---- listStrategies ----
+
+    @Test
+    void listStrategiesGetsTheStrategiesResource() {
+        responseStatus.set(200);
+        responseBody.set("""
+                {"strategies":[\
+                {"strategyId":"s1","compiledAt":"2026-08-19T10:15:00Z","requiredSources":["Ticker"]},\
+                {"strategyId":"s2","compiledAt":"2026-08-12T09:02:11Z"}]}""");
+
+        List<ListStrategies200ResponseStrategiesInner> strategies = qts.listStrategies();
+
+        HttpExchange recorded = exchanges.get(0);
+        assertEquals("GET", recorded.getRequestMethod());
+        assertEquals("/strategies", recorded.getRequestURI().getPath());
+        assertEquals(2, strategies.size());
+        assertEquals("s1", strategies.get(0).getStrategyId());
+        assertEquals(List.of("Ticker"), strategies.get(0).getRequiredSources());
+        assertEquals("s2", strategies.get(1).getStrategyId());
+    }
+
+    /** Never a 404 — an empty array means no registered strategies. */
+    @Test
+    void listStrategiesReturnsEmptyListRatherThanFailing() {
+        responseStatus.set(200);
+        responseBody.set("{\"strategies\":[]}");
+
+        assertTrue(qts.listStrategies().isEmpty());
+    }
+
+    @Test
+    void listStrategiesMapsApiExceptionToQtsError() {
+        responseStatus.set(500);
+        responseBody.set("{\"code\":\"INTERNAL\",\"message\":\"boom\"}");
+
+        QTSError ex = assertThrows(QTSError.class, () -> qts.listStrategies());
+        assertTrue(ex.getMessage().contains("listStrategies call failed"));
+        assertTrue(ex.getMessage().contains("HTTP 500"));
+    }
+
+    // ---- deleteStrategy ----
+
+    @Test
+    void deleteStrategyDeletesTheStrategyResource() {
+        responseStatus.set(200);
+        responseBody.set("{\"strategyId\":\"s1\",\"deleted\":true}");
+
+        qts.deleteStrategy("s1");
+
+        HttpExchange recorded = exchanges.get(0);
+        assertEquals("DELETE", recorded.getRequestMethod());
+        assertEquals("/strategy/s1", recorded.getRequestURI().getPath());
+    }
+
+    @Test
+    void deleteStrategyMapsApiExceptionToQtsError() {
+        responseStatus.set(404);
+        responseBody.set("{\"code\":\"NOT_FOUND\",\"message\":\"no such strategy\"}");
+
+        QTSError ex = assertThrows(QTSError.class, () -> qts.deleteStrategy("nope"));
+        assertTrue(ex.getMessage().contains("deleteStrategy call failed"));
+        assertTrue(ex.getMessage().contains("HTTP 404"));
+    }
+
+    @Test
+    void deleteStrategyRejectsNullStrategyId() {
+        assertThrows(NullPointerException.class, () -> qts.deleteStrategy(null));
+    }
+
+    // ---- getStrategyCode ----
+
+    @Test
+    void getStrategyCodeGetsTheCodeSubresource() {
+        responseStatus.set(200);
+        responseBody.set("{\"strategyId\":\"s1\",\"code\":\"class S {}\"}");
+
+        String code = qts.getStrategyCode("s1");
+
+        HttpExchange recorded = exchanges.get(0);
+        assertEquals("GET", recorded.getRequestMethod());
+        assertEquals("/strategy/s1/code", recorded.getRequestURI().getPath());
+        assertEquals("class S {}", code);
+    }
+
+    /**
+     * The endpoint's 404 covers two different situations without
+     * distinguishing them; from the SDK's side both just surface as
+     * QTSError, same as any other 404.
+     */
+    @Test
+    void getStrategyCodeMapsApiExceptionToQtsError() {
+        responseStatus.set(404);
+        responseBody.set("{\"code\":\"NOT_FOUND\",\"message\":\"nothing to return\"}");
+
+        QTSError ex = assertThrows(QTSError.class, () -> qts.getStrategyCode("nope"));
+        assertTrue(ex.getMessage().contains("getStrategyCode call failed"));
+        assertTrue(ex.getMessage().contains("HTTP 404"));
+    }
+
+    @Test
+    void getStrategyCodeRejectsNullStrategyId() {
+        assertThrows(NullPointerException.class, () -> qts.getStrategyCode(null));
     }
 }

@@ -6,6 +6,56 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-08-20
+
+Built against `com.qtsurfer:api-client-java` `0.10.0` (OpenAPI spec `0.109.1`). Additive: three
+new methods on both `QTSurfer` and `AuthenticatedClient`; every existing method signature is
+unchanged.
+
+### Added ✨
+
+- **`listStrategies()`** — every strategy registered under the account and not since deleted,
+  most recently compiled first. Deliberately cheaper than reading each strategy individually: it
+  omits validation state, so listing stays cheap regardless of how many strategies exist. Check a
+  specific strategy's validation with the existing `strategyState(strategyId)`. Never a `404` —
+  an empty list means no registered strategies, not a missing resource.
+- **`deleteStrategy(strategyId)`** — releases a registered strategy, removing it from both
+  `strategyState(strategyId)` and `listStrategies()`. Three things worth knowing before calling
+  it: recompiling the same source afterward registers a brand-new strategy with a brand-new id,
+  it does not "undelete" this one; backtests already run against this strategy are completely
+  unaffected — deletion only stops it counting against the account and stops future validation or
+  re-run under this id; and it only ever removes the caller's own registration — deleting a
+  strategy copied from a shared/marketplace listing never touches the original.
+- **`getStrategyCode(strategyId)`** — the exact source last submitted for a registered strategy
+  id, whitespace and comments included. Its `404` deliberately covers two different situations
+  without distinguishing them: the id was never registered by the caller, or it resolves only
+  through a shared/marketplace reference that carries no source of its own. Both mean "nothing to
+  return" from this call's point of view.
+- `strategyState(strategyId)` now returns a `StrategyState` whose optional `getLinks()` can carry
+  a `code` link (`StrategyLinks.getCode()`, `.../strategy/{strategyId}/code`) pointing at
+  `getStrategyCode(...)` — present on a fully-resolved state, absent while validation is still
+  pending. This is a pass-through of the generated model's new field; no SDK wrapper was added
+  (see the open question below).
+
+### Open questions for review
+
+- **`_links` exposure.** The SDK has no existing convention for surfacing HAL `_links` to callers
+  — `instruments(...)` unwraps its envelope down to `List<InstrumentDetail>` and discards
+  `_links` entirely, and `strategyState(...)` already hands back the api-client's raw
+  `StrategyState` rather than an SDK-specific type. Since the latter is the closer precedent, the
+  new `_links.code` link needed no code at all: it flows through automatically once
+  `strategyState(...)` returns the regenerated model. If a future release wants a friendlier way
+  to follow the link (e.g. a convenience method that calls `getStrategyCode` when the link is
+  present), that would be new ground, not an extension of an existing pattern.
+- **`listStrategies()`'s element type.** The spec defines the array items as an inline,
+  unnamed schema rather than a reusable named component, so the generator produced
+  `ListStrategies200ResponseStrategiesInner` — an awkward name for a public return type, and its
+  `requiredSources` comes back as `List<String>` rather than the typed enum
+  `strategyState(...)` uses for the same concept. `listStrategies()` returns it as-is rather than
+  introducing a hand-rolled wrapper type, matching how little this layer otherwise
+  editorializes on read shapes. Worth a second look if the spec is ever revised to name that
+  schema.
+
 ## [0.13.1] — 2026-08-13
 
 ### Fixed 🐛

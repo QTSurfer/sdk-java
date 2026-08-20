@@ -8,6 +8,7 @@ import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.InstrumentDetail;
+import com.qtsurfer.api.client.model.ListStrategies200ResponseStrategiesInner;
 import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.client.model.StrategyState;
 import com.qtsurfer.api.sdk.auth.AuthOptions;
@@ -213,6 +214,95 @@ public final class QTSurfer {
             return strategyApi.getStrategy(strategyId);
         } catch (ApiException e) {
             throw new QTSError("strategyState call failed: " + describe(e), e);
+        }
+    }
+
+    /**
+     * List every strategy registered under this account and not since
+     * deleted, most recently compiled first. Synchronous — blocks the
+     * calling thread for the HTTP round trip.
+     *
+     * <p>Deliberately cheaper than reading each strategy individually: each
+     * entry carries the same {@code compiledAt} / {@code requiredSources}
+     * provenance {@link #strategyState(String)} does, but not validation
+     * state, so listing stays cheap no matter how many strategies exist.
+     * Check a specific strategy's validation with
+     * {@link #strategyState(String)}.
+     *
+     * <p>Never fails with a {@code 404} — an empty list means the caller has
+     * no registered strategies, not that the resource is missing.
+     *
+     * @return the caller's registered strategies
+     * @throws QTSError on HTTP 4xx/5xx or transport failure
+     */
+    public List<ListStrategies200ResponseStrategiesInner> listStrategies() {
+        try {
+            return strategyApi.listStrategies().getStrategies();
+        } catch (ApiException e) {
+            throw new QTSError("listStrategies call failed: " + describe(e), e);
+        }
+    }
+
+    /**
+     * Release a registered strategy: removes it from both
+     * {@link #strategyState(String)} and {@link #listStrategies()}.
+     * Synchronous — blocks the calling thread for the HTTP round trip.
+     *
+     * <p><strong>Not undone by recompiling the same source.</strong>
+     * Submitting identical source to {@link #compile(String)} afterward
+     * registers a brand-new strategy with a brand-new id — it does not
+     * "undelete" this one.
+     *
+     * <p><strong>History is untouched.</strong> Backtests already run
+     * against this strategy are completely unaffected by deleting it.
+     * Deletion only stops the strategy counting against the account and
+     * stops future validation or re-run under this id.
+     *
+     * <p><strong>Scoped to the caller's own registration.</strong> If this
+     * id was copied from someone else's strategy (a shared/marketplace
+     * listing), deleting it here never affects their copy, or anyone
+     * else's copy of the same source.
+     *
+     * @param strategyId id of a registered strategy, as returned by
+     *                   {@link #compile(String)}
+     * @throws QTSError on HTTP 4xx/5xx (including {@code 404} when no such
+     *                  strategy is registered for this caller) or transport
+     *                  failure
+     */
+    public void deleteStrategy(String strategyId) {
+        Objects.requireNonNull(strategyId, "strategyId");
+        try {
+            strategyApi.deleteStrategy(strategyId);
+        } catch (ApiException e) {
+            throw new QTSError("deleteStrategy call failed: " + describe(e), e);
+        }
+    }
+
+    /**
+     * Fetch the exact source last submitted for a registered strategy id —
+     * the same text {@link #compile(String)} derived {@code strategyId}
+     * from, whitespace and comments included. Synchronous — blocks the
+     * calling thread for the HTTP round trip.
+     *
+     * <p><strong>A {@code 404} here covers two different situations, and
+     * deliberately does not distinguish them:</strong> the id was never
+     * registered by this caller, or it resolves only through a
+     * shared/marketplace reference that carries no source of its own. Both
+     * mean the same thing from this call's point of view — nothing to
+     * return — so both raise the same way.
+     *
+     * @param strategyId id of a registered strategy, as returned by
+     *                   {@link #compile(String)}
+     * @return the raw strategy source last registered for this id
+     * @throws QTSError on HTTP 4xx/5xx (including the {@code 404} above) or
+     *                  transport failure
+     */
+    public String getStrategyCode(String strategyId) {
+        Objects.requireNonNull(strategyId, "strategyId");
+        try {
+            return strategyApi.getStrategyCode(strategyId).getCode();
+        } catch (ApiException e) {
+            throw new QTSError("getStrategyCode call failed: " + describe(e), e);
         }
     }
 
@@ -469,9 +559,10 @@ public final class QTSurfer {
     /**
      * One-call setup: exchange an API key for a short-lived JWT and return
      * an {@link AuthenticatedClient} that mirrors this SDK's surface
-     * (compile / validateStrategy / strategyState / backtest /
-     * backtestResult / sweep / exchanges / instruments / tickers / klines)
-     * with automatic refresh-on-401.
+     * (compile / validateStrategy / strategyState / listStrategies /
+     * deleteStrategy / getStrategyCode / backtest / backtestResult / sweep /
+     * exchanges / instruments / tickers / klines) with automatic
+     * refresh-on-401.
      *
      * <p>If {@code apikey} is {@code null} or blank, the value is read from
      * the {@code QTSURFER_APIKEY} environment variable.

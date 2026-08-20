@@ -191,7 +191,7 @@ ResultMap result = job.await().join();
 
 ## API coverage
 
-Measured against **API spec 0.107.0**: 18 operations, all 18 reachable from this SDK.
+Measured against **API spec 0.109.1**: 21 operations, all 21 reachable from this SDK.
 
 It exists because the generated `com.qtsurfer:api-client-java` tracks the spec automatically and
 this hand-written layer does not. Unqualified method names below are on both entry points,
@@ -209,6 +209,9 @@ exception, since it is the auth path itself.
 | `compileStrategy` | Direct — `compile(...)` → `Strategy` |
 | `validateStrategy` | Direct — `validateStrategy(strategyId)` → `ValidationOutcome` |
 | `getStrategy` | Direct — `strategyState(strategyId)` → `StrategyState` |
+| `listStrategies` | Direct — `listStrategies()` → `List<ListStrategies200ResponseStrategiesInner>` |
+| `deleteStrategy` | Direct — `deleteStrategy(strategyId)` |
+| `getStrategyCode` | Direct — `getStrategyCode(strategyId)` → `String` |
 | `prepareBacktest` | Via workflow — `backtest(...)` and `sweep(...)` |
 | `getPrepareStatus` | Via workflow — the prepare poll |
 | `executeBacktest` | Via workflow — `backtest(...)` |
@@ -351,6 +354,43 @@ not a clean bill of health.
 superseded by recompilation: when `compiledAt` is later than `validatedAt`, the recorded verdict
 describes bytecode that is no longer what would run — call `validateStrategy` again. HTTP errors
 surface as `QTSError`; a `404` means only that no such strategy is registered for you.
+
+### Listing, deleting, and reading back a strategy's source
+
+```java
+import com.qtsurfer.api.client.model.ListStrategies200ResponseStrategiesInner;
+
+List<ListStrategies200ResponseStrategiesInner> mine = qts.listStrategies();
+```
+
+`listStrategies()` returns every strategy registered under the account and not since deleted,
+most recently compiled first — never a `404`; an empty list just means none are registered. It
+deliberately omits validation state to stay cheap no matter how many strategies exist: check a
+specific one with `strategyState(strategyId)`.
+
+```java
+String source = qts.getStrategyCode(strategy.id());
+```
+
+`getStrategyCode(strategyId)` returns the exact source last submitted for that id. Its `404`
+covers two situations without distinguishing them — the id was never registered by the caller, or
+it resolves only through a shared/marketplace reference that carries no source of its own. Both
+read as the same honest "nothing to return."
+
+```java
+qts.deleteStrategy(strategy.id());
+```
+
+`deleteStrategy(strategyId)` releases a registration — three things worth knowing before calling
+it:
+
+- **Not "undelete."** Recompiling the identical source afterward registers a brand-new strategy
+  with a brand-new id.
+- **History is untouched.** Backtests already run against this strategy keep their results;
+  deletion only stops it counting against the account and stops future validation or re-run under
+  this id.
+- **Scoped to your own registration.** Deleting your copy of a strategy never affects anyone
+  else's copy of the same source — for example a shared/marketplace listing.
 
 ## Parameter sweeps
 
