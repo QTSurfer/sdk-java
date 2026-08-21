@@ -17,7 +17,7 @@ import java.util.Objects;
  *     .instrument("BTC/USDT")
  *     .from("2026-01-01T00:00:00Z")
  *     .to("2026-02-01T00:00:00Z")
- *     .param("rsiPeriod", ParamAxis.range(7, 28, 1))
+ *     .param("rsi.period", ParamAxis.range(7, 28, 1))
  *     .param("useTrendFilter", ParamAxis.of(true, false))
  *     .objective(SweepObjective.SHARPE)
  *     .build();
@@ -126,7 +126,13 @@ public record SweepRequest(
          * Add one axis to the grid. Calling this twice with the same name
          * replaces the earlier axis.
          *
-         * @param name the strategy property to vary
+         * <p>The {@code name} must be the strategy property's
+         * {@code @StrategyProperty(name = "...")} annotation value (e.g.
+         * {@code "rsi.period"}), NOT the Java field name (e.g.
+         * {@code rsiPeriod}). Using the field name is silently ignored by the
+         * platform and every trial runs with the default.
+         *
+         * @param name the strategy property to vary (the {@code @StrategyProperty} name)
          * @param axis the values to try for it
          * @return this builder
          */
