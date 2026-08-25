@@ -83,6 +83,22 @@ System.out.println("PnL: " + result.getPnlTotal());
 System.out.println("Trades: " + result.getTotalTrades());
 ```
 
+To backtest against a dataset you already uploaded instead of an exchange, set `datasetId` and
+`exchangeId("user")` in place of `instrument`:
+
+```java
+BacktestRequest.builder()
+        .strategy(source)
+        .exchangeId("user")
+        .datasetId("ds_3f9a1c2e7b0d4a5f")
+        .from("2026-04-13T00:00:00Z")
+        .to("2026-04-14T00:00:00Z")
+        .build();
+```
+
+Uploading and managing datasets themselves is not yet wrapped by this SDK — see
+[API coverage](#api-coverage).
+
 ### Environment
 
 | Variable          | Purpose                                              |
@@ -191,7 +207,8 @@ ResultMap result = job.await().join();
 
 ## API coverage
 
-Measured against **API spec 0.109.1**: 21 operations, all 21 reachable from this SDK.
+Measured against **API spec 0.110.1**: 27 operations, 21 reachable from this SDK; the 6
+`DatasetApi` operations are deliberately not wrapped yet (see the note below the table).
 
 It exists because the generated `com.qtsurfer:api-client-java` tracks the spec automatically and
 this hand-written layer does not. Unqualified method names below are on both entry points,
@@ -221,6 +238,19 @@ exception, since it is the auth path itself.
 | `getSweepResult` | Via workflow (the leaderboard poll) and direct — `Sweep.results(...)` re-reads it under another view |
 | `cancelSweep` | Direct — `Sweep.cancel()` |
 | `getSweepSensitivity` | Direct — `Sweep.sensitivity(...)` |
+| `createDataset` | Not wrapped — see below |
+| `listDatasets` | Not wrapped — see below |
+| `getDataset` | Not wrapped — see below |
+| `deleteDataset` | Not wrapped — see below |
+| `finalizeDatasetUpload` | Not wrapped — see below |
+| `getDatasetUpload` | Not wrapped — see below |
+
+Backtesting and sweeping **against** an already-uploaded dataset works today — set
+`BacktestRequest`/`SweepRequest`'s `datasetId` instead of `instrument` (with `exchangeId: "user"`);
+see [Parameter sweeps](#parameter-sweeps) and the class Javadoc. What is not yet wrapped here is
+dataset *management* — creating one, listing them, reading or deleting one, and finalizing an
+upload — deferred to a future release. Reach those six operations via the raw generated
+`com.qtsurfer:api-client` `DatasetApi` in the meantime.
 
 **"Via workflow"** means the operation runs as a stage of `backtest(...)`, `sweep(...)`, or the
 decomposed `Strategy.backtest(...)`, and has no standalone method — deliberately. Those calls own

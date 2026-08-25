@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-08-25
+
+Built against `com.qtsurfer:api-client-java` `0.11.0` (OpenAPI spec `0.110.1`). Adds backtesting
+and sweeping against a caller-uploaded dataset, alongside the existing exchange-instrument path.
+
+### Added ✨
+
+- `BacktestRequest` and `SweepRequest` gain `datasetId` / `datasetVersionId`. Set `datasetId`
+  (with the reserved `exchangeId` value `"user"`) instead of `instrument` to run a backtest or
+  sweep against an already-uploaded dataset; `datasetVersionId` optionally pins a specific past
+  version instead of the dataset's current one. `Builder.datasetId(String)` and
+  `Builder.datasetVersionId(String)` are available on both builders. Exactly one of `instrument`
+  or `datasetId` must be set — the compact constructor now throws `NullPointerException` when
+  neither is given (same exception the old required-`instrument` check threw), and
+  `IllegalArgumentException` when both are given, or when `datasetVersionId` is given without
+  `datasetId`. This validation checks `instrument`/`datasetId` against each other only — it does
+  not cross-check `exchangeId`, so `exchangeId("binance").datasetId("ds_x")` builds successfully
+  here and is rejected server-side instead; use the reserved `exchangeId` value `"user"` with
+  `datasetId`.
+- The generated `PrepareJobState` (`api-client-java` 0.11.0) gains `getCadence()`, `getGaps()`,
+  and `getLargestGapSteps()`, populated for a dataset-backed prepare. This SDK's `onProgress`
+  callback still only surfaces `coverageRatio` on `BacktestProgress`/`SweepProgressEvent` — the
+  richer per-dataset detail is not yet exposed through this layer.
+
+### Changed 🔄
+
+- **Breaking for direct record construction.** `BacktestRequest` and `SweepRequest` each gained
+  two trailing components (`datasetId`, `datasetVersionId`), so their canonical constructor's
+  arity changed. A caller using `BacktestRequest.builder()` / `SweepRequest.builder()` is
+  unaffected; a caller invoking `new BacktestRequest(...)` or `new SweepRequest(...)` positionally
+  must add the two new trailing arguments (`null, null` to keep prior behavior).
+
+Dataset management itself (create, list, get, delete, finalize an upload) is not yet exposed by
+this SDK — reach it through the raw generated `com.qtsurfer:api-client` `DatasetApi` in the
+meantime.
+
 ## [0.14.1] — 2026-08-20
 
 Built against `com.qtsurfer:api-client-java` `0.10.1` (OpenAPI spec `0.109.2`).

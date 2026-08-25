@@ -255,9 +255,17 @@ public final class BacktestWorkflow {
 
     private String prepareData(BacktestRequest req, BacktestOptions opts) {
         PrepareRequest body = new PrepareRequest()
-                .instrument(req.instrument())
                 .from(req.from())
                 .to(req.to());
+        if (req.instrument() != null) {
+            body.instrument(req.instrument());
+        }
+        if (req.datasetId() != null) {
+            body.datasetId(req.datasetId());
+        }
+        if (req.datasetVersionId() != null) {
+            body.datasetVersionId(req.datasetVersionId());
+        }
         return Preparation.prepare(
                 backtestingApi, req.exchangeId(), TICKER, body,
                 opts.pollInterval(), opts.maxPollInterval(), opts.timeout(),

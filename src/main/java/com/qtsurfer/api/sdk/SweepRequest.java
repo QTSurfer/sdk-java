@@ -23,23 +23,45 @@ import java.util.Objects;
  *     .build();
  * }</pre>
  *
- * @param strategy    strategy source code (Java), compiled once and reused by every trial
- * @param exchangeId  exchange identifier, e.g. {@code "binance"}
- * @param instrument  instrument symbol, e.g. {@code "BTC/USDT"}
- * @param from        range start (ISO-8601, ISO DATE, or BASIC ISO DATE)
- * @param to          range end (same formats as {@code from}; must be {@code > from})
- * @param params      the grid: one {@link ParamAxis} per strategy property to vary. At least one
- * @param sampler     how the grid becomes the list of vectors actually run; {@code null} keeps
- *                    the platform default (the full cross product)
- * @param samples     how many vectors to draw for {@link SweepSampler#RANDOM} and
- *                    {@link SweepSampler#LHS}; ignored by {@link SweepSampler#GRID}
- * @param seed        reproducibility seed. {@code null} lets the platform generate one and report
- *                    it back on {@link ExecuteSweepAccepted#getSeed()}, so a randomly sampled
- *                    sweep can be replayed exactly by submitting the same seed again
- * @param objective   the metric to optimize and rank by; {@code null} keeps the platform default.
- *                    It is also what {@link Sweep#sensitivity()} aggregates unless told otherwise
- * @param walkForward opt into walk-forward validation, which changes both what runs and the shape
- *                    of the answer; {@code null} runs an ordinary sweep. See {@link WalkForwardSpec}
+ * <p>Against a caller-uploaded dataset, set {@code datasetId} instead of
+ * {@code instrument} (and use the reserved {@code exchangeId} value
+ * {@code "user"}); the two are mutually exclusive:
+ *
+ * <pre>{@code
+ * SweepRequest request = SweepRequest.builder()
+ *     .strategy(source)
+ *     .exchangeId("user")
+ *     .datasetId("ds_3f9a1c2e7b0d4a5f")
+ *     .from("2026-01-01T00:00:00Z")
+ *     .to("2026-02-01T00:00:00Z")
+ *     .param("rsi.period", ParamAxis.range(7, 28, 1))
+ *     .objective(SweepObjective.SHARPE)
+ *     .build();
+ * }</pre>
+ *
+ * @param strategy         strategy source code (Java), compiled once and reused by every trial
+ * @param exchangeId       exchange identifier, e.g. {@code "binance"}, or the reserved value
+ *                         {@code "user"} for a dataset-backed sweep
+ * @param instrument       instrument symbol, e.g. {@code "BTC/USDT"}; mutually exclusive with
+ *                         {@code datasetId} — exactly one of the two must be set
+ * @param from             range start (ISO-8601, ISO DATE, or BASIC ISO DATE)
+ * @param to               range end (same formats as {@code from}; must be {@code > from})
+ * @param params           the grid: one {@link ParamAxis} per strategy property to vary. At least one
+ * @param sampler          how the grid becomes the list of vectors actually run; {@code null} keeps
+ *                         the platform default (the full cross product)
+ * @param samples          how many vectors to draw for {@link SweepSampler#RANDOM} and
+ *                         {@link SweepSampler#LHS}; ignored by {@link SweepSampler#GRID}
+ * @param seed             reproducibility seed. {@code null} lets the platform generate one and report
+ *                         it back on {@link ExecuteSweepAccepted#getSeed()}, so a randomly sampled
+ *                         sweep can be replayed exactly by submitting the same seed again
+ * @param objective        the metric to optimize and rank by; {@code null} keeps the platform default.
+ *                         It is also what {@link Sweep#sensitivity()} aggregates unless told otherwise
+ * @param walkForward      opt into walk-forward validation, which changes both what runs and the shape
+ *                         of the answer; {@code null} runs an ordinary sweep. See {@link WalkForwardSpec}
+ * @param datasetId        id of a dataset created via the raw generated api-client (dataset management
+ *                         itself is not exposed by this SDK); mutually exclusive with {@code instrument}
+ * @param datasetVersionId pins a specific past version of {@code datasetId} instead of its current
+ *                         one; only valid alongside a non-null {@code datasetId}
  */
 public record SweepRequest(
         String strategy,
@@ -52,16 +74,29 @@ public record SweepRequest(
         Integer samples,
         Long seed,
         SweepObjective objective,
-        WalkForwardSpec walkForward
+        WalkForwardSpec walkForward,
+        String datasetId,
+        String datasetVersionId
 ) {
     /**
-     * @throws NullPointerException     when a required field is missing
-     * @throws IllegalArgumentException when the grid is empty
+     * @throws NullPointerException     when a required field is missing, or when neither
+     *                                  {@code instrument} nor {@code datasetId} is set
+     * @throws IllegalArgumentException when the grid is empty, when both {@code instrument} and
+     *                                  {@code datasetId} are set, or when {@code datasetVersionId}
+     *                                  is set without {@code datasetId}
      */
     public SweepRequest {
         Objects.requireNonNull(strategy, "strategy");
         Objects.requireNonNull(exchangeId, "exchangeId");
-        Objects.requireNonNull(instrument, "instrument");
+        if (instrument == null && datasetId == null) {
+            Objects.requireNonNull(instrument, "instrument");
+        }
+        if (instrument != null && datasetId != null) {
+            throw new IllegalArgumentException("instrument and datasetId are mutually exclusive");
+        }
+        if (datasetVersionId != null && datasetId == null) {
+            throw new IllegalArgumentException("datasetVersionId requires datasetId");
+        }
         Objects.requireNonNull(from, "from");
         Objects.requireNonNull(to, "to");
         Objects.requireNonNull(params, "params");
@@ -91,6 +126,8 @@ public record SweepRequest(
         private Long seed;
         private SweepObjective objective;
         private WalkForwardSpec walkForward;
+        private String datasetId;
+        private String datasetVersionId;
 
         /**
          * @param strategy strategy source code (Java)
@@ -105,10 +142,25 @@ public record SweepRequest(
         public Builder exchangeId(String exchangeId) { this.exchangeId = exchangeId; return this; }
 
         /**
-         * @param instrument instrument symbol, e.g. {@code "BTC/USDT"}
+         * @param instrument instrument symbol, e.g. {@code "BTC/USDT"}; mutually exclusive with
+         *                   {@code datasetId}
          * @return this builder
          */
         public Builder instrument(String instrument) { this.instrument = instrument; return this; }
+
+        /**
+         * @param datasetId id of a dataset to backtest against instead of an exchange instrument;
+         *                  mutually exclusive with {@code instrument}
+         * @return this builder
+         */
+        public Builder datasetId(String datasetId) { this.datasetId = datasetId; return this; }
+
+        /**
+         * @param datasetVersionId pins a specific past version of {@code datasetId}; only valid
+         *                         alongside a non-null {@code datasetId}
+         * @return this builder
+         */
+        public Builder datasetVersionId(String datasetVersionId) { this.datasetVersionId = datasetVersionId; return this; }
 
         /**
          * @param from range start
@@ -199,7 +251,8 @@ public record SweepRequest(
         public SweepRequest build() {
             return new SweepRequest(
                     strategy, exchangeId, instrument, from, to,
-                    params, sampler, samples, seed, objective, walkForward);
+                    params, sampler, samples, seed, objective, walkForward,
+                    datasetId, datasetVersionId);
         }
     }
 }

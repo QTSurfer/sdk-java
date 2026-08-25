@@ -312,6 +312,51 @@ class SweepTest {
     }
 
     @Test
+    void buildsFromDatasetIdAlone() {
+        SweepRequest r = SweepRequest.builder()
+                .strategy("class S {}")
+                .exchangeId("user")
+                .datasetId("ds_x")
+                .from("2026-01-01").to("2026-02-01")
+                .param("rsiPeriod", ParamAxis.range(7, 28, 1))
+                .build();
+
+        assertNull(r.instrument());
+        assertEquals("ds_x", r.datasetId());
+        assertNull(r.datasetVersionId());
+    }
+
+    @Test
+    void rejectsBothInstrumentAndDatasetId() {
+        assertThrows(IllegalArgumentException.class, () -> SweepRequest.builder()
+                .strategy("class S {}").exchangeId("binance").instrument("BTC/USDT")
+                .datasetId("ds_x")
+                .from("2026-01-01").to("2026-02-01")
+                .param("rsiPeriod", ParamAxis.range(7, 28, 1))
+                .build());
+    }
+
+    @Test
+    void rejectsNeitherInstrumentNorDatasetId() {
+        assertTrue(assertThrows(NullPointerException.class, () -> SweepRequest.builder()
+                .strategy("class S {}").exchangeId("binance")
+                .from("2026-01-01").to("2026-02-01")
+                .param("rsiPeriod", ParamAxis.range(7, 28, 1))
+                .build()
+        ).getMessage().contains("instrument"));
+    }
+
+    @Test
+    void rejectsDatasetVersionIdWithoutDatasetId() {
+        assertThrows(IllegalArgumentException.class, () -> SweepRequest.builder()
+                .strategy("class S {}").exchangeId("binance").instrument("BTC/USDT")
+                .datasetVersionId("dsv_x")
+                .from("2026-01-01").to("2026-02-01")
+                .param("rsiPeriod", ParamAxis.range(7, 28, 1))
+                .build());
+    }
+
+    @Test
     void rejectsASingleFoldWalkForward() {
         assertThrows(IllegalArgumentException.class, () -> WalkForwardSpec.of(1));
     }
