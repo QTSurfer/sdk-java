@@ -1,6 +1,7 @@
 package com.qtsurfer.api.sdk;
 
 import com.qtsurfer.api.client.model.ExecuteSweepAccepted;
+import com.qtsurfer.api.client.model.EquityCurveRequest;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -76,8 +77,16 @@ public record SweepRequest(
         SweepObjective objective,
         WalkForwardSpec walkForward,
         String datasetId,
-        String datasetVersionId
+        String datasetVersionId,
+        EquityCurveRequest equityCurve
 ) {
+    public SweepRequest(String strategy, String exchangeId, String instrument, String from, String to,
+                        Map<String, ParamAxis> params, SweepSampler sampler, Integer samples, Long seed,
+                        SweepObjective objective, WalkForwardSpec walkForward, String datasetId,
+                        String datasetVersionId) {
+        this(strategy, exchangeId, instrument, from, to, params, sampler, samples, seed, objective,
+                walkForward, datasetId, datasetVersionId, null);
+    }
     /**
      * @throws NullPointerException     when a required field is missing, or when neither
      *                                  {@code instrument} nor {@code datasetId} is set
@@ -128,6 +137,7 @@ public record SweepRequest(
         private WalkForwardSpec walkForward;
         private String datasetId;
         private String datasetVersionId;
+        private EquityCurveRequest equityCurve;
 
         /**
          * @param strategy strategy source code (Java)
@@ -243,6 +253,8 @@ public record SweepRequest(
          */
         public Builder walkForward(int folds) { return walkForward(WalkForwardSpec.of(folds)); }
 
+        public Builder equityCurve(EquityCurveRequest equityCurve) { this.equityCurve = equityCurve; return this; }
+
         /**
          * Build the request.
          *
@@ -252,7 +264,7 @@ public record SweepRequest(
             return new SweepRequest(
                     strategy, exchangeId, instrument, from, to,
                     params, sampler, samples, seed, objective, walkForward,
-                    datasetId, datasetVersionId);
+                    datasetId, datasetVersionId, equityCurve);
         }
     }
 }

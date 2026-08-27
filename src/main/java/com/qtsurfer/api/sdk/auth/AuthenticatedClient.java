@@ -2,12 +2,21 @@ package com.qtsurfer.api.sdk.auth;
 
 import com.qtsurfer.api.client.api.AuthApi;
 import com.qtsurfer.api.client.api.BacktestingApi;
+import com.qtsurfer.api.client.api.DatasetApi;
 import com.qtsurfer.api.client.api.ExchangeApi;
 import com.qtsurfer.api.client.api.StrategyApi;
 import com.qtsurfer.api.client.binary.ExchangeBinaryDownloads;
 import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.AuthTokenResponse;
+import com.qtsurfer.api.client.model.CreateDatasetRequest;
+import com.qtsurfer.api.client.model.Dataset;
+import com.qtsurfer.api.client.model.DatasetCreated;
+import com.qtsurfer.api.client.model.DatasetUploadState;
+import com.qtsurfer.api.client.model.DatasetWithLinks;
+import com.qtsurfer.api.client.model.EquityCurveOutMode;
+import com.qtsurfer.api.client.model.EquityCurveResult;
+import com.qtsurfer.api.client.model.FinalizeDatasetUpload202Response;
 import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.client.model.StrategySummary;
@@ -26,6 +35,7 @@ import com.qtsurfer.api.sdk.errors.QTSAuthError;
 import com.qtsurfer.api.sdk.errors.QTSDownloadError;
 import com.qtsurfer.api.sdk.errors.QTSError;
 import com.qtsurfer.api.sdk.internal.HttpStrategyCompileClient;
+import com.qtsurfer.api.sdk.internal.ApiCalls;
 import com.qtsurfer.api.sdk.internal.ValidationOutcomes;
 import com.qtsurfer.api.sdk.workflows.BacktestWorkflow;
 import com.qtsurfer.api.sdk.workflows.SweepWorkflow;
@@ -55,7 +65,7 @@ import java.util.function.Supplier;
  *
  * <p>Exposes the same workflow surface as {@code QTSurfer}: {@code compile},
  * {@code validateStrategy}, {@code strategyState}, {@code listStrategies},
- * {@code deleteStrategy}, {@code getStrategyCode}, {@code backtest},
+ * {@code deleteStrategy}, {@code getStrategyCode}, dataset management, {@code backtest},
  * {@code backtestResult}, {@code sweep}, {@code exchanges},
  * {@code instruments}, {@code tickers}, {@code klines}.
  * Method semantics are unchanged — only the bearer token management differs.
@@ -94,6 +104,7 @@ public final class AuthenticatedClient {
     private final ExchangeBinaryDownloads downloads;
     private final ExchangeApi exchangeApi;
     private final StrategyApi strategyApi;
+    private final DatasetApi datasetApi;
     private final AtomicReference<AuthTokenResponse> cached = new AtomicReference<>();
 
     /**
@@ -112,7 +123,8 @@ public final class AuthenticatedClient {
             SweepWorkflow sweepWorkflow,
             ExchangeBinaryDownloads downloads,
             ExchangeApi exchangeApi,
-            StrategyApi strategyApi) {
+            StrategyApi strategyApi,
+            DatasetApi datasetApi) {
         this.options = options;
         this.authApi = authApi;
         this.backtestWorkflow = backtestWorkflow;
@@ -120,6 +132,7 @@ public final class AuthenticatedClient {
         this.downloads = downloads;
         this.exchangeApi = exchangeApi;
         this.strategyApi = strategyApi;
+        this.datasetApi = datasetApi;
     }
 
     /** Configuration in use by this session. */
@@ -591,6 +604,59 @@ public final class AuthenticatedClient {
         return withRefreshOn401Async(() -> sweepWorkflow.submit(request, opts));
     }
 
+    /** Read a retained sweep trial's equity curve with one refresh-on-401 retry. */
+    public EquityCurveResult sweepRunEquityCurve(
+            String exchangeId, String requestId, String sweepId, int runIx,
+            EquityCurveOutMode outMode, Integer resample, Boolean differential) {
+        Objects.requireNonNull(exchangeId, "exchangeId");
+        Objects.requireNonNull(requestId, "requestId");
+        Objects.requireNonNull(sweepId, "sweepId");
+        return withRefreshOn401(() -> backtestWorkflow.getSweepRunEquityCurve(
+                exchangeId, requestId, sweepId, runIx, outMode, resample, differential));
+    }
+
+    /** Create a dataset and its first presigned upload session. */
+    public DatasetCreated createDataset(CreateDatasetRequest request) {
+        Objects.requireNonNull(request, "request");
+        return withRefreshOn401(() -> callDataset(() -> datasetApi.createDataset(request), "createDataset"));
+    }
+
+    /** List the caller's non-deleted datasets, newest first. */
+    public List<Dataset> listDatasets() {
+        return withRefreshOn401(() -> callDataset(() -> datasetApi.listDatasets().getDatasets(), "listDatasets"));
+    }
+
+    /** Read one dataset and its self link. */
+    public DatasetWithLinks dataset(String datasetId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        return withRefreshOn401(() -> callDataset(() -> datasetApi.getDataset(datasetId), "dataset"));
+    }
+
+    /** Soft-delete a dataset. Existing runs against it are unaffected. */
+    public void deleteDataset(String datasetId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        withRefreshOn401(() -> {
+            callDataset(() -> { datasetApi.deleteDataset(datasetId); return null; }, "deleteDataset");
+            return null;
+        });
+    }
+
+    /** Mark a completed presigned upload ready for ingestion and return its ingest job id. */
+    public FinalizeDatasetUpload202Response finalizeDatasetUpload(String datasetId, String uploadId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        Objects.requireNonNull(uploadId, "uploadId");
+        return withRefreshOn401(() -> callDataset(
+                () -> datasetApi.finalizeDatasetUpload(datasetId, uploadId), "finalizeDatasetUpload"));
+    }
+
+    /** Read an upload's ingest state after it has been finalized. */
+    public DatasetUploadState datasetUpload(String datasetId, String uploadId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        Objects.requireNonNull(uploadId, "uploadId");
+        return withRefreshOn401(() -> callDataset(
+                () -> datasetApi.getDatasetUpload(datasetId, uploadId), "datasetUpload"));
+    }
+
     /**
      * List available exchanges on the platform. Synchronous — blocks the
      * calling thread for the HTTP round trip. Participates in the
@@ -741,6 +807,10 @@ public final class AuthenticatedClient {
         }).thenCompose(f -> f);
     }
 
+    private static <T> T callDataset(ApiCalls.ApiCall<T> call, String operation) {
+        return ApiCalls.call(call, operation + " call failed", QTSError::new);
+    }
+
     private static boolean isUnauthorized(QTSError e) {
         Throwable c = e.getCause();
         return c instanceof ApiException api && api.getCode() == 401;
@@ -797,9 +867,10 @@ public final class AuthenticatedClient {
         ExchangeBinaryDownloads downloads = new ExchangeBinaryDownloads(apiClient);
         ExchangeApi exchangeApi = new ExchangeApi(apiClient);
         StrategyApi strategyApi = new StrategyApi(apiClient);
+        DatasetApi datasetApi = new DatasetApi(apiClient);
 
         AuthenticatedClient session = new AuthenticatedClient(
-                o, mintApi, workflow, sweeps, downloads, exchangeApi, strategyApi);
+                o, mintApi, workflow, sweeps, downloads, exchangeApi, strategyApi, datasetApi);
         // Keep `shared` mirrored to the session's cache via a bridge thread-safely.
         session.linkBearerRef(shared);
 

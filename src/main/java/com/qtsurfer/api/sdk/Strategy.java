@@ -1,7 +1,9 @@
 package com.qtsurfer.api.sdk;
 
 import com.qtsurfer.api.sdk.workflows.BacktestWorkflow;
+import com.qtsurfer.api.client.model.DeclaredProperty;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
@@ -12,11 +14,18 @@ import java.util.concurrent.CompletableFuture;
 public final class Strategy {
 
     private final String id;
+    private final List<DeclaredProperty> declaredProperties;
     private final BacktestWorkflow workflow;
 
     /** Internal constructor used by the SDK workflow; not part of the public contract. */
     public Strategy(String id, BacktestWorkflow workflow) {
+        this(id, List.of(), workflow);
+    }
+
+    /** Internal constructor used by the SDK workflow; not part of the public contract. */
+    public Strategy(String id, List<DeclaredProperty> declaredProperties, BacktestWorkflow workflow) {
         this.id = Objects.requireNonNull(id, "id");
+        this.declaredProperties = List.copyOf(declaredProperties);
         this.workflow = Objects.requireNonNull(workflow, "workflow");
     }
 
@@ -24,6 +33,9 @@ public final class Strategy {
     public String id() {
         return id;
     }
+
+    /** Best-effort property vocabulary discovered while compiling this strategy. */
+    public List<DeclaredProperty> declaredProperties() { return declaredProperties; }
 
     /** Run a backtest with this strategy. Prepare + execute start immediately. */
     public CompletableFuture<Backtest> backtest(BacktestRequest request, BacktestOptions options) {

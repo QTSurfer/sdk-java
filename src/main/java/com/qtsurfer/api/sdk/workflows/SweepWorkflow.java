@@ -159,6 +159,9 @@ public final class SweepWorkflow {
             if (wf.inSamplePct() != null) wfBody.inSamplePct(wf.inSamplePct());
             body.walkForward(wfBody);
         }
+        if (req.equityCurve() != null) {
+            body.equityCurve(req.equityCurve());
+        }
         return body;
     }
 

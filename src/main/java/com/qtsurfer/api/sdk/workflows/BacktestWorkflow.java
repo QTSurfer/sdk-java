@@ -5,6 +5,8 @@ import com.qtsurfer.api.client.model.AcceptedJob;
 import com.qtsurfer.api.client.model.BacktestJobResult;
 import com.qtsurfer.api.client.model.DataSourceType;
 import com.qtsurfer.api.client.model.ExecuteBacktestRequest;
+import com.qtsurfer.api.client.model.EquityCurveOutMode;
+import com.qtsurfer.api.client.model.EquityCurveResult;
 import com.qtsurfer.api.client.model.JobState;
 import com.qtsurfer.api.client.model.PrepareRequest;
 import com.qtsurfer.api.client.model.ResultMap;
@@ -15,6 +17,7 @@ import com.qtsurfer.api.sdk.BacktestOutcome;
 import com.qtsurfer.api.sdk.BacktestProgress;
 import com.qtsurfer.api.sdk.BacktestRequest;
 import com.qtsurfer.api.sdk.BacktestStage;
+import com.qtsurfer.api.sdk.CompiledStrategy;
 import com.qtsurfer.api.sdk.Strategy;
 import com.qtsurfer.api.sdk.errors.QTSCanceledError;
 import com.qtsurfer.api.sdk.errors.QTSError;
@@ -67,8 +70,8 @@ public final class BacktestWorkflow {
         BacktestOptions safeOpts = opts != null ? opts : BacktestOptions.defaults();
         return CompletableFuture.supplyAsync(() -> {
             emit(safeOpts.onProgress(), new BacktestProgress(BacktestStage.COMPILING, null));
-            String strategyId = compileStrategy(source);
-            return new Strategy(strategyId, this);
+            CompiledStrategy compiled = compileStrategy(source);
+            return new Strategy(compiled.id(), compiled.declaredProperties(), this);
         }, executor);
     }
 
@@ -132,6 +135,18 @@ public final class BacktestWorkflow {
         return BacktestOutcomes.of(readJobResult(exchangeId, jobId, QTSError::new));
     }
 
+    /** Read a retained sweep trial curve without starting or polling a sweep. */
+    public EquityCurveResult getSweepRunEquityCurve(
+            String exchangeId, String requestId, String sweepId, int runIx,
+            EquityCurveOutMode outMode, Integer resample, Boolean differential) {
+        return call(
+                () -> backtestingApi.getSweepRunEquityCurve(
+                        exchangeId, TICKER, requestId, sweepId, runIx,
+                        outMode, resample, differential),
+                "Sweep equity curve request failed",
+                QTSError::new);
+    }
+
     /**
      * One read of the execute-result resource. Both the background poll and
      * {@link #readResult} go through here, so the route is encoded in exactly
@@ -161,6 +176,9 @@ public final class BacktestWorkflow {
                 .strategyId(strategy.id());
         if (req.storeSignals() != null) {
             body.storeSignals(req.storeSignals());
+        }
+        if (req.equityCurve() != null) {
+            body.equityCurve(req.equityCurve());
         }
         return body;
     }
@@ -245,12 +263,18 @@ public final class BacktestWorkflow {
         return results;
     }
 
-    private String compileStrategy(String source) {
-        String strategyId = strategyClient.compile(source);
+    private CompiledStrategy compileStrategy(String source) {
+        CompiledStrategy compiled = strategyClient.compileDetails(source);
+        // Mockito test doubles made before compile metadata existed return null for the new
+        // default method; preserve the original compile seam for those callers.
+        if (compiled == null) {
+            compiled = new CompiledStrategy(strategyClient.compile(source), java.util.List.of());
+        }
+        String strategyId = compiled.id();
         if (strategyId == null || strategyId.isBlank()) {
             throw new QTSStrategyCompileError("Compile response missing strategyId");
         }
-        return strategyId;
+        return compiled;
     }
 
     private String prepareData(BacktestRequest req, BacktestOptions opts) {

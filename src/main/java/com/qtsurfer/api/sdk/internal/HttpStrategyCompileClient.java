@@ -4,12 +4,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.sdk.errors.QTSStrategyCompileError;
+import com.qtsurfer.api.sdk.CompiledStrategy;
+import com.qtsurfer.api.client.model.DeclaredProperty;
 
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Default {@link StrategyCompileClient} backed by the api-client's shared
@@ -30,6 +34,11 @@ public final class HttpStrategyCompileClient implements StrategyCompileClient {
 
     @Override
     public String compile(String source) {
+        return compileDetails(source).id();
+    }
+
+    @Override
+    public CompiledStrategy compileDetails(String source) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(apiClient.getBaseUri() + "/strategy"))
                 .header("Content-Type", "text/plain")
@@ -43,7 +52,18 @@ public final class HttpStrategyCompileClient implements StrategyCompileClient {
         if (!json.hasNonNull("strategyId")) {
             throw new QTSStrategyCompileError("Compile response missing strategyId");
         }
-        return json.get("strategyId").asText();
+        List<DeclaredProperty> properties = new ArrayList<>();
+        JsonNode declared = json.get("declaredProperties");
+        if (declared != null && declared.isArray()) {
+            for (JsonNode node : declared) {
+                try {
+                    properties.add(apiClient.getObjectMapper().treeToValue(node, DeclaredProperty.class));
+                } catch (IOException e) {
+                    throw new QTSStrategyCompileError("Invalid declaredProperties in compile response", e);
+                }
+            }
+        }
+        return new CompiledStrategy(json.get("strategyId").asText(), properties);
     }
 
     private void applyInterceptor(HttpRequest.Builder builder) {

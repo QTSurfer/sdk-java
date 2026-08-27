@@ -1,5 +1,6 @@
 package com.qtsurfer.api.sdk;
 
+import com.qtsurfer.api.client.model.EquityCurveOptions;
 import java.util.Objects;
 
 /**
@@ -56,8 +57,13 @@ public record BacktestRequest(
         String to,
         Boolean storeSignals,
         String datasetId,
-        String datasetVersionId
+        String datasetVersionId,
+        EquityCurveOptions equityCurve
 ) {
+    public BacktestRequest(String strategy, String exchangeId, String instrument, String from, String to,
+                           Boolean storeSignals, String datasetId, String datasetVersionId) {
+        this(strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId, null);
+    }
     public BacktestRequest {
         Objects.requireNonNull(strategy, "strategy");
         Objects.requireNonNull(exchangeId, "exchangeId");
@@ -85,6 +91,7 @@ public record BacktestRequest(
         private Boolean storeSignals;
         private String datasetId;
         private String datasetVersionId;
+        private EquityCurveOptions equityCurve;
 
         public Builder strategy(String strategy) { this.strategy = strategy; return this; }
         public Builder exchangeId(String exchangeId) { this.exchangeId = exchangeId; return this; }
@@ -94,10 +101,11 @@ public record BacktestRequest(
         public Builder storeSignals(boolean storeSignals) { this.storeSignals = storeSignals; return this; }
         public Builder datasetId(String datasetId) { this.datasetId = datasetId; return this; }
         public Builder datasetVersionId(String datasetVersionId) { this.datasetVersionId = datasetVersionId; return this; }
+        public Builder equityCurve(EquityCurveOptions equityCurve) { this.equityCurve = equityCurve; return this; }
 
         public BacktestRequest build() {
             return new BacktestRequest(
-                    strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId);
+                    strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId, equityCurve);
         }
     }
 }

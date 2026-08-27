@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-08-27
+
+Built against `com.qtsurfer:api-client-java` `0.12.0` (OpenAPI spec `0.110.3`).
+
+### Added ✨
+
+- Dataset management is available on both `QTSurfer` and `AuthenticatedClient`: `createDataset`,
+  `listDatasets`, `dataset`, `deleteDataset`, `finalizeDatasetUpload`, and `datasetUpload`.
+  Create returns a presigned URL; PUT the CSV directly without API credentials, finalize it, then
+  poll its ingest state. These methods do not make dataset management available through MCP.
+- `sweepRunEquityCurve(exchangeId, requestId, sweepId, runIx, outMode, resample, differential)`
+  reads a retained sweep trial curve and reports the response shape through `EquityCurveResult.meta`.
+
+### Changed 🔄
+
+- The SDK now compiles against `ResultMap.getEquityCurve()` returning `EquityCurveResult` rather
+  than a bare point list. Existing SDK workflows return the generated `ResultMap` unchanged.
+
 ## [0.15.0] — 2026-08-25
 
 Built against `com.qtsurfer:api-client-java` `0.11.0` (OpenAPI spec `0.110.1`). Adds backtesting

@@ -1,12 +1,21 @@
 package com.qtsurfer.api.sdk;
 
 import com.qtsurfer.api.client.api.BacktestingApi;
+import com.qtsurfer.api.client.api.DatasetApi;
 import com.qtsurfer.api.client.api.ExchangeApi;
 import com.qtsurfer.api.client.api.StrategyApi;
 import com.qtsurfer.api.client.binary.ExchangeBinaryDownloads;
 import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.Exchange;
+import com.qtsurfer.api.client.model.CreateDatasetRequest;
+import com.qtsurfer.api.client.model.Dataset;
+import com.qtsurfer.api.client.model.DatasetCreated;
+import com.qtsurfer.api.client.model.DatasetUploadState;
+import com.qtsurfer.api.client.model.DatasetWithLinks;
+import com.qtsurfer.api.client.model.EquityCurveOutMode;
+import com.qtsurfer.api.client.model.EquityCurveResult;
+import com.qtsurfer.api.client.model.FinalizeDatasetUpload202Response;
 import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.client.model.StrategySummary;
 import com.qtsurfer.api.client.model.ResultMap;
@@ -59,16 +68,18 @@ public final class QTSurfer {
     private final ExchangeBinaryDownloads downloads;
     private final ExchangeApi exchangeApi;
     private final StrategyApi strategyApi;
+    private final DatasetApi datasetApi;
 
     private QTSurfer(QTSurferOptions options, BacktestWorkflow backtestWorkflow,
                      SweepWorkflow sweepWorkflow, ExchangeBinaryDownloads downloads,
-                     ExchangeApi exchangeApi, StrategyApi strategyApi) {
+                     ExchangeApi exchangeApi, StrategyApi strategyApi, DatasetApi datasetApi) {
         this.options = options;
         this.backtestWorkflow = backtestWorkflow;
         this.sweepWorkflow = sweepWorkflow;
         this.downloads = downloads;
         this.exchangeApi = exchangeApi;
         this.strategyApi = strategyApi;
+        this.datasetApi = datasetApi;
     }
 
     /** Configuration this client was built with. */
@@ -431,6 +442,81 @@ public final class QTSurfer {
     }
 
     /**
+     * Read a retained sweep trial's equity curve. The returned {@code meta} says whether its
+     * points use {@code ARRAY} or {@code SHORT} output; do not infer that from the requested mode.
+     */
+    public EquityCurveResult sweepRunEquityCurve(
+            String exchangeId, String requestId, String sweepId, int runIx,
+            EquityCurveOutMode outMode, Integer resample, Boolean differential) {
+        Objects.requireNonNull(exchangeId, "exchangeId");
+        Objects.requireNonNull(requestId, "requestId");
+        Objects.requireNonNull(sweepId, "sweepId");
+        return backtestWorkflow.getSweepRunEquityCurve(
+                exchangeId, requestId, sweepId, runIx, outMode, resample, differential);
+    }
+
+    /** Create a dataset and its first presigned upload session. */
+    public DatasetCreated createDataset(CreateDatasetRequest request) {
+        Objects.requireNonNull(request, "request");
+        try {
+            return datasetApi.createDataset(request);
+        } catch (ApiException e) {
+            throw new QTSError("createDataset call failed: " + describe(e), e);
+        }
+    }
+
+    /** List the caller's non-deleted datasets, newest first. */
+    public List<Dataset> listDatasets() {
+        try {
+            return datasetApi.listDatasets().getDatasets();
+        } catch (ApiException e) {
+            throw new QTSError("listDatasets call failed: " + describe(e), e);
+        }
+    }
+
+    /** Read one dataset and its self link. */
+    public DatasetWithLinks dataset(String datasetId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        try {
+            return datasetApi.getDataset(datasetId);
+        } catch (ApiException e) {
+            throw new QTSError("dataset call failed: " + describe(e), e);
+        }
+    }
+
+    /** Soft-delete a dataset. Existing runs against it are unaffected. */
+    public void deleteDataset(String datasetId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        try {
+            datasetApi.deleteDataset(datasetId);
+        } catch (ApiException e) {
+            throw new QTSError("deleteDataset call failed: " + describe(e), e);
+        }
+    }
+
+    /** Mark a completed presigned upload ready for ingestion and return its ingest job id. */
+    public FinalizeDatasetUpload202Response finalizeDatasetUpload(String datasetId, String uploadId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        Objects.requireNonNull(uploadId, "uploadId");
+        try {
+            return datasetApi.finalizeDatasetUpload(datasetId, uploadId);
+        } catch (ApiException e) {
+            throw new QTSError("finalizeDatasetUpload call failed: " + describe(e), e);
+        }
+    }
+
+    /** Read an upload's ingest state after it has been finalized. */
+    public DatasetUploadState datasetUpload(String datasetId, String uploadId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        Objects.requireNonNull(uploadId, "uploadId");
+        try {
+            return datasetApi.getDatasetUpload(datasetId, uploadId);
+        } catch (ApiException e) {
+            throw new QTSError("datasetUpload call failed: " + describe(e), e);
+        }
+    }
+
+    /**
      * List available exchanges on the platform.
      *
      * @throws QTSError on HTTP 4xx/5xx or transport failure
@@ -561,7 +647,7 @@ public final class QTSurfer {
      * an {@link AuthenticatedClient} that mirrors this SDK's surface
      * (compile / validateStrategy / strategyState / listStrategies /
      * deleteStrategy / getStrategyCode / backtest / backtestResult / sweep /
-     * exchanges / instruments / tickers / klines) with automatic
+     * dataset management / exchanges / instruments / tickers / klines) with automatic
      * refresh-on-401.
      *
      * <p>If {@code apikey} is {@code null} or blank, the value is read from
@@ -610,7 +696,7 @@ public final class QTSurfer {
             BacktestWorkflow workflow = new BacktestWorkflow(compileClient, backtestingApi, exec);
             SweepWorkflow sweeps = new SweepWorkflow(compileClient, backtestingApi, exec);
             return new QTSurfer(opts, workflow, sweeps, new ExchangeBinaryDownloads(apiClient),
-                    new ExchangeApi(apiClient), new StrategyApi(apiClient));
+                    new ExchangeApi(apiClient), new StrategyApi(apiClient), new DatasetApi(apiClient));
         }
     }
 }
