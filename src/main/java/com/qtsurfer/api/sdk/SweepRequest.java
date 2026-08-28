@@ -59,10 +59,12 @@ import java.util.Objects;
  *                         It is also what {@link Sweep#sensitivity()} aggregates unless told otherwise
  * @param walkForward      opt into walk-forward validation, which changes both what runs and the shape
  *                         of the answer; {@code null} runs an ordinary sweep. See {@link WalkForwardSpec}
- * @param datasetId        id of a dataset created via the raw generated api-client (dataset management
- *                         itself is not exposed by this SDK); mutually exclusive with {@code instrument}
+ * @param datasetId        id of a dataset created with {@link QTSurfer#createDataset}; mutually
+ *                         exclusive with {@code instrument}
  * @param datasetVersionId pins a specific past version of {@code datasetId} instead of its current
  *                         one; only valid alongside a non-null {@code datasetId}
+ * @param equityCurve      which sweep trials retain curves and their default read transform;
+ *                         {@code null} keeps the platform defaults
  */
 public record SweepRequest(
         String strategy,
@@ -253,6 +255,10 @@ public record SweepRequest(
          */
         public Builder walkForward(int folds) { return walkForward(WalkForwardSpec.of(folds)); }
 
+        /**
+         * @param equityCurve retention and default transform for sweep trial curves
+         * @return this builder
+         */
         public Builder equityCurve(EquityCurveRequest equityCurve) { this.equityCurve = equityCurve; return this; }
 
         /**

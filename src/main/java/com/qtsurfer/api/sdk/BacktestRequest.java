@@ -44,10 +44,12 @@ import java.util.Objects;
  * @param to               range end (same formats as {@code from}; must be {@code > from})
  * @param storeSignals     when {@code Boolean.TRUE}, the worker uploads emitted signals to object storage
  *                         and the result includes {@code signalsUrl} / {@code signalsId}; {@code null} keeps the server default
- * @param datasetId        id of a dataset created via the raw generated api-client (dataset management
- *                         itself is not exposed by this SDK); mutually exclusive with {@code instrument}
+ * @param datasetId        id of a dataset created with {@link QTSurfer#createDataset}; mutually
+ *                         exclusive with {@code instrument}
  * @param datasetVersionId pins a specific past version of {@code datasetId} instead of its current
  *                         one; only valid alongside a non-null {@code datasetId}
+ * @param equityCurve      requested server-side transform for the inline result curve; {@code null}
+ *                         keeps the platform defaults
  */
 public record BacktestRequest(
         String strategy,
@@ -101,6 +103,10 @@ public record BacktestRequest(
         public Builder storeSignals(boolean storeSignals) { this.storeSignals = storeSignals; return this; }
         public Builder datasetId(String datasetId) { this.datasetId = datasetId; return this; }
         public Builder datasetVersionId(String datasetVersionId) { this.datasetVersionId = datasetVersionId; return this; }
+        /**
+         * @param equityCurve requested server-side transform for the inline result curve
+         * @return this builder
+         */
         public Builder equityCurve(EquityCurveOptions equityCurve) { this.equityCurve = equityCurve; return this; }
 
         public BacktestRequest build() {

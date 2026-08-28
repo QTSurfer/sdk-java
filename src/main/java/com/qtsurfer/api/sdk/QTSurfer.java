@@ -7,14 +7,15 @@ import com.qtsurfer.api.client.api.StrategyApi;
 import com.qtsurfer.api.client.binary.ExchangeBinaryDownloads;
 import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.ApiException;
-import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.CreateDatasetRequest;
 import com.qtsurfer.api.client.model.Dataset;
 import com.qtsurfer.api.client.model.DatasetCreated;
 import com.qtsurfer.api.client.model.DatasetUploadState;
+import com.qtsurfer.api.client.model.DatasetUploadSession;
 import com.qtsurfer.api.client.model.DatasetWithLinks;
 import com.qtsurfer.api.client.model.EquityCurveOutMode;
 import com.qtsurfer.api.client.model.EquityCurveResult;
+import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.FinalizeDatasetUpload202Response;
 import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.client.model.StrategySummary;
@@ -24,12 +25,16 @@ import com.qtsurfer.api.sdk.auth.AuthOptions;
 import com.qtsurfer.api.sdk.auth.AuthenticatedClient;
 import com.qtsurfer.api.sdk.errors.QTSDownloadError;
 import com.qtsurfer.api.sdk.errors.QTSError;
+import com.qtsurfer.api.sdk.internal.DatasetUploads;
 import com.qtsurfer.api.sdk.internal.HttpStrategyCompileClient;
 import com.qtsurfer.api.sdk.internal.ValidationOutcomes;
 import com.qtsurfer.api.sdk.workflows.BacktestWorkflow;
 import com.qtsurfer.api.sdk.workflows.SweepWorkflow;
 
 import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -442,10 +447,23 @@ public final class QTSurfer {
     }
 
     /**
-     * Read a retained sweep trial's equity curve. The returned {@code meta} says whether its
-     * points use {@code ARRAY} or {@code SHORT} output; do not infer that from the requested mode.
+     * Read a retained sweep trial's equity curve without starting or polling a sweep.
+     *
+     * <p>Pass {@code null} for a transform argument to inherit that sweep's submission default.
+     * The returned {@code meta} says whether points use {@code ARRAY} or {@code SHORT} output;
+     * do not infer that from the requested mode.
+     *
+     * @param exchangeId exchange that owns the sweep
+     * @param requestId prepared-dataset identifier from {@link Sweep#requestId()}
+     * @param sweepId sweep identifier from {@link Sweep#id()}
+     * @param runIx trial index to read
+     * @param outMode requested point representation, or {@code null} for the sweep default
+     * @param resample maximum point count, or {@code null} for the sweep default
+     * @param differential whether to delta-encode points, or {@code null} for the sweep default
+     * @return the retained curve with authoritative response metadata
+     * @throws QTSError if the sweep/trial is unknown, its curve was not retained, or the request fails
      */
-    public EquityCurveResult sweepRunEquityCurve(
+    public EquityCurveResult getSweepRunEquityCurve(
             String exchangeId, String requestId, String sweepId, int runIx,
             EquityCurveOutMode outMode, Integer resample, Boolean differential) {
         Objects.requireNonNull(exchangeId, "exchangeId");
@@ -514,6 +532,44 @@ public final class QTSurfer {
         } catch (ApiException e) {
             throw new QTSError("datasetUpload call failed: " + describe(e), e);
         }
+    }
+
+    /**
+     * Open or recover the pending upload session for an existing dataset.
+     *
+     * @param datasetId dataset that will receive the next version
+     * @return presigned upload session to pass to {@link #uploadDatasetFile(DatasetUploadSession, Path)}
+     * @throws QTSError on HTTP 4xx/5xx or transport failure
+     */
+    public DatasetUploadSession openDatasetUpload(String datasetId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        try {
+            return datasetApi.openDatasetUpload(datasetId);
+        } catch (ApiException e) {
+            throw new QTSError("openDatasetUpload call failed: " + describe(e), e);
+        }
+    }
+
+    /**
+     * Stream a local file to the initial presigned target without attaching API credentials.
+     *
+     * @param created result returned by {@link #createDataset(CreateDatasetRequest)}
+     * @param file readable regular file to upload
+     * @throws com.qtsurfer.api.sdk.errors.QTSUploadError when the transfer fails
+     */
+    public void uploadDatasetFile(DatasetCreated created, Path file) {
+        DatasetUploads.upload(uploadHttpClient(), created, file);
+    }
+
+    /**
+     * Stream a local file to a reopened presigned target without attaching API credentials.
+     *
+     * @param session session returned by {@link #openDatasetUpload(String)}
+     * @param file readable regular file to upload
+     * @throws com.qtsurfer.api.sdk.errors.QTSUploadError when the transfer fails
+     */
+    public void uploadDatasetFile(DatasetUploadSession session, Path file) {
+        DatasetUploads.upload(uploadHttpClient(), session, file);
     }
 
     /**
@@ -635,6 +691,10 @@ public final class QTSurfer {
         }
     }
 
+    private HttpClient uploadHttpClient() {
+        return options.httpClient() != null ? options.httpClient() : HttpClient.newHttpClient();
+    }
+
     private static String describe(ApiException e) {
         if (e.getResponseBody() != null && !e.getResponseBody().isBlank()) {
             return "HTTP " + e.getCode() + " — " + e.getResponseBody();
@@ -677,9 +737,9 @@ public final class QTSurfer {
         private final QTSurferOptions.Builder delegate = QTSurferOptions.builder();
 
         public Builder baseUrl(String baseUrl) { delegate.baseUrl(baseUrl); return this; }
-        public Builder baseUrl(java.net.URI baseUrl) { delegate.baseUrl(baseUrl); return this; }
+        public Builder baseUrl(URI baseUrl) { delegate.baseUrl(baseUrl); return this; }
         public Builder token(String token) { delegate.token(token); return this; }
-        public Builder httpClient(java.net.http.HttpClient httpClient) { delegate.httpClient(httpClient); return this; }
+        public Builder httpClient(HttpClient httpClient) { delegate.httpClient(httpClient); return this; }
         public Builder executor(ExecutorService executor) { delegate.executor(executor); return this; }
 
         public QTSurfer build() {

@@ -13,11 +13,12 @@ import com.qtsurfer.api.client.model.CreateDatasetRequest;
 import com.qtsurfer.api.client.model.Dataset;
 import com.qtsurfer.api.client.model.DatasetCreated;
 import com.qtsurfer.api.client.model.DatasetUploadState;
+import com.qtsurfer.api.client.model.DatasetUploadSession;
 import com.qtsurfer.api.client.model.DatasetWithLinks;
 import com.qtsurfer.api.client.model.EquityCurveOutMode;
 import com.qtsurfer.api.client.model.EquityCurveResult;
-import com.qtsurfer.api.client.model.FinalizeDatasetUpload202Response;
 import com.qtsurfer.api.client.model.Exchange;
+import com.qtsurfer.api.client.model.FinalizeDatasetUpload202Response;
 import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.client.model.StrategySummary;
 import com.qtsurfer.api.client.model.ResultMap;
@@ -34,14 +35,17 @@ import com.qtsurfer.api.sdk.ValidationOutcome;
 import com.qtsurfer.api.sdk.errors.QTSAuthError;
 import com.qtsurfer.api.sdk.errors.QTSDownloadError;
 import com.qtsurfer.api.sdk.errors.QTSError;
-import com.qtsurfer.api.sdk.internal.HttpStrategyCompileClient;
 import com.qtsurfer.api.sdk.internal.ApiCalls;
+import com.qtsurfer.api.sdk.internal.DatasetUploads;
+import com.qtsurfer.api.sdk.internal.HttpStrategyCompileClient;
 import com.qtsurfer.api.sdk.internal.ValidationOutcomes;
 import com.qtsurfer.api.sdk.workflows.BacktestWorkflow;
 import com.qtsurfer.api.sdk.workflows.SweepWorkflow;
 
 import java.io.InputStream;
+import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -604,8 +608,24 @@ public final class AuthenticatedClient {
         return withRefreshOn401Async(() -> sweepWorkflow.submit(request, opts));
     }
 
-    /** Read a retained sweep trial's equity curve with one refresh-on-401 retry. */
-    public EquityCurveResult sweepRunEquityCurve(
+    /**
+     * Read a retained sweep trial's equity curve with one refresh-on-401 retry.
+     *
+     * <p>Pass {@code null} for a transform argument to inherit that sweep's submission default.
+     * The returned {@code meta} says whether points use {@code ARRAY} or {@code SHORT} output;
+     * do not infer that from the requested mode.
+     *
+     * @param exchangeId exchange that owns the sweep
+     * @param requestId prepared-dataset identifier from {@link Sweep#requestId()}
+     * @param sweepId sweep identifier from {@link Sweep#id()}
+     * @param runIx trial index to read
+     * @param outMode requested point representation, or {@code null} for the sweep default
+     * @param resample maximum point count, or {@code null} for the sweep default
+     * @param differential whether to delta-encode points, or {@code null} for the sweep default
+     * @return the retained curve with authoritative response metadata
+     * @throws QTSError if the sweep/trial is unknown, its curve was not retained, or the request fails
+     */
+    public EquityCurveResult getSweepRunEquityCurve(
             String exchangeId, String requestId, String sweepId, int runIx,
             EquityCurveOutMode outMode, Integer resample, Boolean differential) {
         Objects.requireNonNull(exchangeId, "exchangeId");
@@ -655,6 +675,41 @@ public final class AuthenticatedClient {
         Objects.requireNonNull(uploadId, "uploadId");
         return withRefreshOn401(() -> callDataset(
                 () -> datasetApi.getDatasetUpload(datasetId, uploadId), "datasetUpload"));
+    }
+
+    /**
+     * Open or recover the pending upload session for an existing dataset.
+     *
+     * @param datasetId dataset that will receive the next version
+     * @return presigned upload session to pass to {@link #uploadDatasetFile(DatasetUploadSession, Path)}
+     * @throws QTSError on HTTP 4xx/5xx or transport failure
+     */
+    public DatasetUploadSession openDatasetUpload(String datasetId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        return withRefreshOn401(() -> callDataset(
+                () -> datasetApi.openDatasetUpload(datasetId), "openDatasetUpload"));
+    }
+
+    /**
+     * Stream a local file to the initial presigned target without attaching API credentials.
+     *
+     * @param created result returned by {@link #createDataset(CreateDatasetRequest)}
+     * @param file readable regular file to upload
+     * @throws com.qtsurfer.api.sdk.errors.QTSUploadError when the transfer fails
+     */
+    public void uploadDatasetFile(DatasetCreated created, Path file) {
+        DatasetUploads.upload(uploadHttpClient(), created, file);
+    }
+
+    /**
+     * Stream a local file to a reopened presigned target without attaching API credentials.
+     *
+     * @param session session returned by {@link #openDatasetUpload(String)}
+     * @param file readable regular file to upload
+     * @throws com.qtsurfer.api.sdk.errors.QTSUploadError when the transfer fails
+     */
+    public void uploadDatasetFile(DatasetUploadSession session, Path file) {
+        DatasetUploads.upload(uploadHttpClient(), session, file);
     }
 
     /**
@@ -773,6 +828,10 @@ public final class AuthenticatedClient {
                 throw new QTSDownloadError("klines download failed: " + describe(e), e);
             }
         });
+    }
+
+    private HttpClient uploadHttpClient() {
+        return options.httpClient() != null ? options.httpClient() : HttpClient.newHttpClient();
     }
 
     // ---- Refresh-on-401 plumbing ----
