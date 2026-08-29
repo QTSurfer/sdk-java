@@ -473,6 +473,15 @@ public final class QTSurfer {
                 exchangeId, requestId, sweepId, runIx, outMode, resample, differential);
     }
 
+    /** Read a retained sweep curve as normalized absolute points with a bounded server request. */
+    public BoundedEquityCurve getBoundedSweepRunEquityCurve(
+            String exchangeId, String requestId, String sweepId, int runIx, Integer maxResample) {
+        int limit = maxResample == null ? BoundedEquityCurve.DEFAULT_MAX_RESAMPLE : maxResample;
+        BoundedEquityCurve.validateMaxResample(limit);
+        return BoundedEquityCurve.decode(getSweepRunEquityCurve(
+                exchangeId, requestId, sweepId, runIx, EquityCurveOutMode.SHORT, limit, true), limit);
+    }
+
     /** Create a dataset and its first presigned upload session. */
     public DatasetCreated createDataset(CreateDatasetRequest request) {
         Objects.requireNonNull(request, "request");

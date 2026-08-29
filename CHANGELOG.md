@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-08-29
+
+Built against `com.qtsurfer:api-client-java` `0.14.0` (OpenAPI spec `0.111.2`).
+
+### Added ✨
+
+- `getBoundedSweepRunEquityCurve(...)` on `QTSurfer` and `AuthenticatedClient` hides the
+  generated curve response and returns immutable, normalized absolute `EquityCurvePoint` values.
+  It requests the compact differential `SHORT` form, defaults `maxResample` to 1,000 and rejects
+  values outside `1..10,000`. The backend remains authoritative for the authenticated plan's
+  lower entitlement cap; 10,000 is only the SDK's absolute process-safety ceiling for an
+  authorised Elite/Enterprise request.
+
 ## [0.18.0] — 2026-08-28
 
 Built against `com.qtsurfer:api-client-java` `0.14.0` (OpenAPI spec `0.111.2`).

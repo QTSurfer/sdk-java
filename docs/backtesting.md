@@ -80,6 +80,18 @@ guide](https://qtsurfer.github.io/docs/equity_curves.html).
 Sweep rows retain curves only when requested. Configure retention with `EquityCurveRequest` and
 read a retained trial with `getSweepRunEquityCurve`:
 
+For a bounded, SDK-normalized curve, prefer `getBoundedSweepRunEquityCurve`. It always asks the
+server for compact differential data, restores absolute points, defaults to 1,000 points and
+allows at most 10,000. The platform may apply a lower plan-specific ceiling.
+
+```java
+BoundedEquityCurve curve = qts.getBoundedSweepRunEquityCurve(
+        "binance", requestId, sweepId, runIx, null);
+List<EquityCurvePoint> points = curve.points();
+```
+
+The raw method remains available below when callers explicitly need the generated API shape:
+
 ```java
 import com.qtsurfer.api.client.model.EquityCurveRequest;
 

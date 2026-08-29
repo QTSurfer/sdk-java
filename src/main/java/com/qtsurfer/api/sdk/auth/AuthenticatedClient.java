@@ -24,6 +24,7 @@ import com.qtsurfer.api.client.model.StrategySummary;
 import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.client.model.StrategyState;
 import com.qtsurfer.api.sdk.BacktestOptions;
+import com.qtsurfer.api.sdk.BoundedEquityCurve;
 import com.qtsurfer.api.sdk.BacktestOutcome;
 import com.qtsurfer.api.sdk.BacktestRequest;
 import com.qtsurfer.api.sdk.DownloadFormat;
@@ -633,6 +634,15 @@ public final class AuthenticatedClient {
         Objects.requireNonNull(sweepId, "sweepId");
         return withRefreshOn401(() -> backtestWorkflow.getSweepRunEquityCurve(
                 exchangeId, requestId, sweepId, runIx, outMode, resample, differential));
+    }
+
+    /** Read a retained sweep curve as normalized absolute points with a bounded server request. */
+    public BoundedEquityCurve getBoundedSweepRunEquityCurve(
+            String exchangeId, String requestId, String sweepId, int runIx, Integer maxResample) {
+        int limit = maxResample == null ? BoundedEquityCurve.DEFAULT_MAX_RESAMPLE : maxResample;
+        BoundedEquityCurve.validateMaxResample(limit);
+        return BoundedEquityCurve.decode(withRefreshOn401(() -> backtestWorkflow.getSweepRunEquityCurve(
+                exchangeId, requestId, sweepId, runIx, EquityCurveOutMode.SHORT, limit, true)), limit);
     }
 
     /** Create a dataset and its first presigned upload session. */
