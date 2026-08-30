@@ -2,12 +2,12 @@
 
 ## Backtest workflow
 
-`backtest(request)` compiles the source, prepares the requested window, submits execution, polls
+`executeBacktest(request)` compiles the source, prepares the requested window, submits execution, polls
 both asynchronous stages, and completes with `ResultMap`. Polling uses Failsafe exponential backoff
 and optional stage timeouts.
 
 ```java
-ResultMap result = qts.backtest(BacktestRequest.builder()
+ResultMap result = qts.executeBacktest(BacktestRequest.builder()
         .strategy(source)
         .exchangeId("binance")
         .instrument("BTC/USDT")
@@ -20,7 +20,7 @@ For progress, cancellation, or compiled-strategy reuse, use the decomposed API:
 
 ```java
 Strategy strategy = qts.compile(request).join();
-Backtest job = strategy.backtest(request, BacktestOptions.builder().build()).join();
+Backtest job = strategy.executeBacktest(request, BacktestOptions.builder().build()).join();
 job.progress().subscribe(/* Flow.Subscriber<BacktestProgress> */);
 ResultMap result = job.await().join();
 ```
@@ -31,13 +31,13 @@ server-side run.
 
 ## Read an existing result
 
-Use `backtestResult(exchangeId, jobId)` for a run submitted by another client or an earlier process.
+Use `getBacktestResult(exchangeId, jobId)` for a run submitted by another client or an earlier process.
 It is a one-time state read, not a poll.
 
 ```java
 import com.qtsurfer.api.sdk.BacktestOutcome;
 
-BacktestOutcome outcome = qts.backtestResult("binance", jobId);
+BacktestOutcome outcome = qts.getBacktestResult("binance", jobId);
 if (outcome instanceof BacktestOutcome.Completed completed) {
     System.out.println(completed.results().getPnlTotal());
 }
@@ -56,7 +56,7 @@ import com.qtsurfer.api.client.model.EquityCurveOptions;
 import com.qtsurfer.api.client.model.EquityCurveOutMode;
 import com.qtsurfer.api.client.model.EquityCurveResult;
 
-ResultMap result = qts.backtest(BacktestRequest.builder()
+ResultMap result = qts.executeBacktest(BacktestRequest.builder()
         .strategy(source)
         .exchangeId("binance")
         .instrument("BTC/USDT")
@@ -152,7 +152,7 @@ stop between vectors, preserves completed rows, and resolves `await()` with the 
 
 `WalkForwardSpec.of(folds, trainPercent)` re-optimizes each fold on its training window and scores
 the winner out of sample. Its rows identify folds, not a parameter-grid position. Use
-`sweep.sensitivity()` to inspect marginal and pairwise objective movement; pairwise heatmaps can be
+`sweep.getSensitivity()` to inspect marginal and pairwise objective movement; pairwise heatmaps can be
 capped, signalled by `getHeatmapsTruncated()`.
 
 ## Errors

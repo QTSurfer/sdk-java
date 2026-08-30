@@ -38,15 +38,25 @@ public final class Strategy {
     public List<DeclaredProperty> declaredProperties() { return declaredProperties; }
 
     /** Run a backtest with this strategy. Prepare + execute start immediately. */
-    public CompletableFuture<Backtest> backtest(BacktestRequest request, BacktestOptions options) {
+    public CompletableFuture<Backtest> executeBacktest(BacktestRequest request, BacktestOptions options) {
         Objects.requireNonNull(request, "request");
         return workflow.submitExecution(this, request, options != null ? options : BacktestOptions.defaults());
     }
 
-    /** Equivalent to {@link #backtest(BacktestRequest, BacktestOptions)} with {@link BacktestOptions#defaults()}. */
-    public CompletableFuture<Backtest> backtest(BacktestRequest request) {
-        return backtest(request, BacktestOptions.defaults());
+    /** Equivalent to {@link #executeBacktest(BacktestRequest, BacktestOptions)} with {@link BacktestOptions#defaults()}. */
+    public CompletableFuture<Backtest> executeBacktest(BacktestRequest request) {
+        return executeBacktest(request, BacktestOptions.defaults());
     }
+
+    /** @deprecated Use {@link #executeBacktest(BacktestRequest, BacktestOptions)}. */
+    @Deprecated(forRemoval = false)
+    public CompletableFuture<Backtest> backtest(BacktestRequest request, BacktestOptions options) {
+        return executeBacktest(request, options);
+    }
+
+    /** @deprecated Use {@link #executeBacktest(BacktestRequest)}. */
+    @Deprecated(forRemoval = false)
+    public CompletableFuture<Backtest> backtest(BacktestRequest request) { return executeBacktest(request); }
 
     /** Compact debug representation including the compiled strategy id. */
     @Override

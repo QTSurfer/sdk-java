@@ -57,7 +57,7 @@ import java.nio.file.Path;
 
 AuthenticatedClient qts = QTSurfer.authenticate();
 
-ResultMap result = qts.backtest(BacktestRequest.builder()
+ResultMap result = qts.executeBacktest(BacktestRequest.builder()
         .strategy(Files.readString(Path.of("Strategy.java")))
         .exchangeId("binance")
         .instrument("BTC/USDT")
@@ -76,7 +76,7 @@ The README is an entry point; the source documentation follows the API's functio
 | API section | SDK guide |
 | --- | --- |
 | Authentication | [docs/auth.md](docs/auth.md) |
-| Exchanges, instruments, and downloads | [docs/exchange.md](docs/exchange.md) |
+| Exchanges, instruments, and downloads | [docs/market_data.md](docs/market_data.md) |
 | Backtests, parameter sweeps, and equity curves | [docs/backtesting.md](docs/backtesting.md) |
 | Equity-curve format and transforms | [API guide](https://qtsurfer.github.io/docs/equity_curves.html) |
 | Strategies and validation | [docs/strategy.md](docs/strategy.md) |
@@ -96,7 +96,7 @@ Set `QTSURFER_TEST_VERBOSE=1` to emit live-test progress through SLF4J.
 
 ## Roadmap
 
-- [ ] TTL cache for `exchanges` / `instruments`
+- [ ] TTL cache for `getExchanges` / `getInstruments`
 - [ ] Loaders for `signalsUrl` Parquet into `duckdb-java` / `lastra-java`
 - [ ] Optional reactive adapters (Reactor / RxJava)
 

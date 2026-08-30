@@ -224,7 +224,7 @@ public final class QTSurfer {
      * @return the platform's record of the strategy
      * @throws QTSError on HTTP 4xx/5xx or transport failure
      */
-    public StrategyState strategyState(String strategyId) {
+    public StrategyState getStrategyState(String strategyId) {
         Objects.requireNonNull(strategyId, "strategyId");
         try {
             return strategyApi.getStrategy(strategyId);
@@ -232,6 +232,10 @@ public final class QTSurfer {
             throw new QTSError("strategyState call failed: " + describe(e), e);
         }
     }
+
+    /** @deprecated Use {@link #getStrategyState(String)}. */
+    @Deprecated(forRemoval = false)
+    public StrategyState strategyState(String strategyId) { return getStrategyState(strategyId); }
 
     /**
      * List every strategy registered under this account and not since
@@ -251,13 +255,17 @@ public final class QTSurfer {
      * @return the caller's registered strategies
      * @throws QTSError on HTTP 4xx/5xx or transport failure
      */
-    public List<StrategySummary> listStrategies() {
+    public List<StrategySummary> getStrategies() {
         try {
             return strategyApi.listStrategies().getStrategies();
         } catch (ApiException e) {
             throw new QTSError("listStrategies call failed: " + describe(e), e);
         }
     }
+
+    /** @deprecated Use {@link #getStrategies()}. */
+    @Deprecated(forRemoval = false)
+    public List<StrategySummary> listStrategies() { return getStrategies(); }
 
     /**
      * Release a registered strategy: removes it from both
@@ -327,8 +335,8 @@ public final class QTSurfer {
      * Equivalent to
      * {@code compile(request).thenCompose(s -> s.backtest(request, options)).thenCompose(Backtest::await)}.
      */
-    public CompletableFuture<ResultMap> backtest(BacktestRequest request) {
-        return backtest(request, BacktestOptions.defaults());
+    public CompletableFuture<ResultMap> executeBacktest(BacktestRequest request) {
+        return executeBacktest(request, BacktestOptions.defaults());
     }
 
     /**
@@ -344,9 +352,19 @@ public final class QTSurfer {
      * @param options tuning knobs (poll interval, timeout, progress
      *                callback) applied to every stage of the pipeline
      */
-    public CompletableFuture<ResultMap> backtest(BacktestRequest request, BacktestOptions options) {
+    public CompletableFuture<ResultMap> executeBacktest(BacktestRequest request, BacktestOptions options) {
         Objects.requireNonNull(request, "request");
         return backtestWorkflow.runFull(request, options);
+    }
+
+    /** @deprecated Use {@link #executeBacktest(BacktestRequest)}. */
+    @Deprecated(forRemoval = false)
+    public CompletableFuture<ResultMap> backtest(BacktestRequest request) { return executeBacktest(request); }
+
+    /** @deprecated Use {@link #executeBacktest(BacktestRequest, BacktestOptions)}. */
+    @Deprecated(forRemoval = false)
+    public CompletableFuture<ResultMap> backtest(BacktestRequest request, BacktestOptions options) {
+        return executeBacktest(request, options);
     }
 
     /**
@@ -390,10 +408,16 @@ public final class QTSurfer {
      * @throws QTSError on HTTP 4xx/5xx (including the {@code 404} above) or
      *                  transport failure
      */
-    public BacktestOutcome backtestResult(String exchangeId, String jobId) {
+    public BacktestOutcome getBacktestResult(String exchangeId, String jobId) {
         Objects.requireNonNull(exchangeId, "exchangeId");
         Objects.requireNonNull(jobId, "jobId");
         return backtestWorkflow.readResult(exchangeId, jobId);
+    }
+
+    /** @deprecated Use {@link #getBacktestResult(String, String)}. */
+    @Deprecated(forRemoval = false)
+    public BacktestOutcome backtestResult(String exchangeId, String jobId) {
+        return getBacktestResult(exchangeId, jobId);
     }
 
     /**
@@ -493,7 +517,7 @@ public final class QTSurfer {
     }
 
     /** List the caller's non-deleted datasets, newest first. */
-    public List<Dataset> listDatasets() {
+    public List<Dataset> getDatasets() {
         try {
             return datasetApi.listDatasets().getDatasets();
         } catch (ApiException e) {
@@ -501,8 +525,12 @@ public final class QTSurfer {
         }
     }
 
+    /** @deprecated Use {@link #getDatasets()}. */
+    @Deprecated(forRemoval = false)
+    public List<Dataset> listDatasets() { return getDatasets(); }
+
     /** Read one dataset and its self link. */
-    public DatasetWithLinks dataset(String datasetId) {
+    public DatasetWithLinks getDataset(String datasetId) {
         Objects.requireNonNull(datasetId, "datasetId");
         try {
             return datasetApi.getDataset(datasetId);
@@ -510,6 +538,10 @@ public final class QTSurfer {
             throw new QTSError("dataset call failed: " + describe(e), e);
         }
     }
+
+    /** @deprecated Use {@link #getDataset(String)}. */
+    @Deprecated(forRemoval = false)
+    public DatasetWithLinks dataset(String datasetId) { return getDataset(datasetId); }
 
     /** Soft-delete a dataset. Existing runs against it are unaffected. */
     public void deleteDataset(String datasetId) {
@@ -533,7 +565,7 @@ public final class QTSurfer {
     }
 
     /** Read an upload's ingest state after it has been finalized. */
-    public DatasetUploadState datasetUpload(String datasetId, String uploadId) {
+    public DatasetUploadState getDatasetUpload(String datasetId, String uploadId) {
         Objects.requireNonNull(datasetId, "datasetId");
         Objects.requireNonNull(uploadId, "uploadId");
         try {
@@ -541,6 +573,12 @@ public final class QTSurfer {
         } catch (ApiException e) {
             throw new QTSError("datasetUpload call failed: " + describe(e), e);
         }
+    }
+
+    /** @deprecated Use {@link #getDatasetUpload(String, String)}. */
+    @Deprecated(forRemoval = false)
+    public DatasetUploadState datasetUpload(String datasetId, String uploadId) {
+        return getDatasetUpload(datasetId, uploadId);
     }
 
     /**
@@ -586,13 +624,17 @@ public final class QTSurfer {
      *
      * @throws QTSError on HTTP 4xx/5xx or transport failure
      */
-    public List<Exchange> exchanges() {
+    public List<Exchange> getExchanges() {
         try {
             return exchangeApi.listExchanges();
         } catch (ApiException e) {
             throw new QTSError("exchanges call failed: " + describe(e), e);
         }
     }
+
+    /** @deprecated Use {@link #getExchanges()}. */
+    @Deprecated(forRemoval = false)
+    public List<Exchange> exchanges() { return getExchanges(); }
 
     /**
      * List instruments available on the given exchange, including per-data-type
@@ -604,7 +646,7 @@ public final class QTSurfer {
      * @param exchangeId exchange identifier (e.g. {@code "binance"})
      * @throws QTSError on HTTP 4xx/5xx or transport failure
      */
-    public List<InstrumentDetail> instruments(String exchangeId) {
+    public List<InstrumentDetail> getInstruments(String exchangeId) {
         Objects.requireNonNull(exchangeId, "exchangeId");
         try {
             return exchangeApi.listInstruments(exchangeId).getData();
@@ -612,6 +654,10 @@ public final class QTSurfer {
             throw new QTSError("instruments call failed: " + describe(e), e);
         }
     }
+
+    /** @deprecated Use {@link #getInstruments(String)}. */
+    @Deprecated(forRemoval = false)
+    public List<InstrumentDetail> instruments(String exchangeId) { return getInstruments(exchangeId); }
 
     /**
      * List the instruments of one market segment of the given exchange,
@@ -629,7 +675,7 @@ public final class QTSurfer {
      * @return the instruments of that segment
      * @throws QTSError on HTTP 4xx/5xx or transport failure
      */
-    public List<InstrumentDetail> instruments(String exchangeId, String segment) {
+    public List<InstrumentDetail> getInstruments(String exchangeId, String segment) {
         Objects.requireNonNull(exchangeId, "exchangeId");
         Objects.requireNonNull(segment, "segment");
         try {
@@ -637,6 +683,12 @@ public final class QTSurfer {
         } catch (ApiException e) {
             throw new QTSError("instruments call failed: " + describe(e), e);
         }
+    }
+
+    /** @deprecated Use {@link #getInstruments(String, String)}. */
+    @Deprecated(forRemoval = false)
+    public List<InstrumentDetail> instruments(String exchangeId, String segment) {
+        return getInstruments(exchangeId, segment);
     }
 
     /**
@@ -650,8 +702,8 @@ public final class QTSurfer {
      *
      * @throws QTSDownloadError on HTTP 4xx/5xx or transport failure
      */
-    public InputStream tickers(String exchangeId, String base, String quote, String hour) {
-        return tickers(exchangeId, base, quote, hour, DownloadFormat.LASTRA);
+    public InputStream downloadTickers(String exchangeId, String base, String quote, String hour) {
+        return downloadTickers(exchangeId, base, quote, hour, DownloadFormat.LASTRA);
     }
 
     /**
@@ -662,7 +714,7 @@ public final class QTSurfer {
      *
      * @throws QTSDownloadError on HTTP 4xx/5xx or transport failure
      */
-    public InputStream tickers(String exchangeId, String base, String quote, String hour, DownloadFormat format) {
+    public InputStream downloadTickers(String exchangeId, String base, String quote, String hour, DownloadFormat format) {
         Objects.requireNonNull(format, "format");
         try {
             return downloads.getTickersHour(exchangeId, base, quote, hour, format.wire());
@@ -672,14 +724,26 @@ public final class QTSurfer {
         }
     }
 
+    /** @deprecated Use {@link #downloadTickers(String, String, String, String)}. */
+    @Deprecated(forRemoval = false)
+    public InputStream tickers(String exchangeId, String base, String quote, String hour) {
+        return downloadTickers(exchangeId, base, quote, hour);
+    }
+
+    /** @deprecated Use {@link #downloadTickers(String, String, String, String, DownloadFormat)}. */
+    @Deprecated(forRemoval = false)
+    public InputStream tickers(String exchangeId, String base, String quote, String hour, DownloadFormat format) {
+        return downloadTickers(exchangeId, base, quote, hour, format);
+    }
+
     /**
      * Download one hour of klines for an instrument as a streaming
      * {@link InputStream}. See {@link #tickers} for semantics.
      *
      * @throws QTSDownloadError on HTTP 4xx/5xx or transport failure
      */
-    public InputStream klines(String exchangeId, String base, String quote, String hour) {
-        return klines(exchangeId, base, quote, hour, DownloadFormat.LASTRA);
+    public InputStream downloadKlines(String exchangeId, String base, String quote, String hour) {
+        return downloadKlines(exchangeId, base, quote, hour, DownloadFormat.LASTRA);
     }
 
     /**
@@ -690,7 +754,7 @@ public final class QTSurfer {
      *
      * @throws QTSDownloadError on HTTP 4xx/5xx or transport failure
      */
-    public InputStream klines(String exchangeId, String base, String quote, String hour, DownloadFormat format) {
+    public InputStream downloadKlines(String exchangeId, String base, String quote, String hour, DownloadFormat format) {
         Objects.requireNonNull(format, "format");
         try {
             return downloads.getKlinesHour(exchangeId, base, quote, hour, format.wire());
@@ -698,6 +762,18 @@ public final class QTSurfer {
             throw new QTSDownloadError(
                     "klines download failed: " + describe(e), e);
         }
+    }
+
+    /** @deprecated Use {@link #downloadKlines(String, String, String, String)}. */
+    @Deprecated(forRemoval = false)
+    public InputStream klines(String exchangeId, String base, String quote, String hour) {
+        return downloadKlines(exchangeId, base, quote, hour);
+    }
+
+    /** @deprecated Use {@link #downloadKlines(String, String, String, String, DownloadFormat)}. */
+    @Deprecated(forRemoval = false)
+    public InputStream klines(String exchangeId, String base, String quote, String hour, DownloadFormat format) {
+        return downloadKlines(exchangeId, base, quote, hour, format);
     }
 
     private HttpClient uploadHttpClient() {

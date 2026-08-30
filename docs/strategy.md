@@ -24,13 +24,13 @@ if (outcome instanceof ValidationOutcome.NotQueued existing) {
 ```
 
 Validation is idempotent. `Queued` means this call started work; `NotQueued` only means that no new
-work was required. It is not a passed verdict: read `strategyState(strategyId)` and poll on your own
+work was required. It is not a passed verdict: read `getStrategyState(strategyId)` and poll on your own
 schedule while its validation is `PENDING`. A check can stall, so callers should use a deadline.
 
 ```java
 import com.qtsurfer.api.client.model.StrategyState;
 
-StrategyState state = qts.strategyState(strategy.id());
+StrategyState state = qts.getStrategyState(strategy.id());
 switch (state.getValidation()) {
     case PASSED -> System.out.println("Validation passed");
     case FAILED -> System.out.println(state.getDetail());
@@ -44,7 +44,7 @@ trading performance or safety. Recompiling supersedes a prior verdict.
 ## Manage registered strategies
 
 ```java
-var mine = qts.listStrategies();       // Empty when none are registered.
+var mine = qts.getStrategies();       // Empty when none are registered.
 String source = qts.getStrategyCode(strategyId);
 qts.deleteStrategy(strategyId);
 ```

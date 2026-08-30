@@ -7,13 +7,13 @@ latter.
 | Section | Operations and SDK surface |
 | --- | --- |
 | Auth | `authenticate`; `AuthenticatedClient.refresh()` re-mints a JWT |
-| Exchange | `exchanges()`, `instruments(exchangeId[, segment])`, `tickers(...)`, `klines(...)` |
-| Strategy | `compile`, `validateStrategy`, `strategyState`, `listStrategies`, `deleteStrategy`, `getStrategyCode` |
-| Backtesting | `backtest(...)` workflow handles prepare and execute; `backtestResult(...)` reads an existing run; `Backtest.cancel()` cancels one |
-| Sweeps | `sweep(...)` workflow; `Sweep.results(...)`, `Sweep.cancel()`, `Sweep.sensitivity(...)`, `getSweepRunEquityCurve(...)` |
-| Dataset | `createDataset`, `listDatasets`, `dataset`, `deleteDataset`, `openDatasetUpload`, `uploadDatasetFile`, `finalizeDatasetUpload`, `datasetUpload` |
+| Exchange | `getExchanges()`, `getInstruments(exchangeId[, segment])`, `downloadTickers(...)`, `downloadKlines(...)` |
+| Strategy | `compile`, `validateStrategy`, `getStrategyState`, `getStrategies`, `deleteStrategy`, `getStrategyCode` |
+| Backtesting | `executeBacktest(...)` workflow handles prepare and execute; `getBacktestResult(...)` reads an existing run; `Backtest.cancel()` cancels one |
+| Sweeps | `sweep(...)` workflow; `Sweep.getResults(...)`, `Sweep.cancel()`, `Sweep.getSensitivity(...)`, `getSweepRunEquityCurve(...)` |
+| Dataset | `createDataset`, `getDatasets`, `getDataset`, `deleteDataset`, `openDatasetUpload`, `uploadDatasetFile`, `finalizeDatasetUpload`, `getDatasetUpload` |
 
 The SDK intentionally does not expose standalone `prepare` or `execute` methods. They are workflow
-stages whose ids remain internal to `backtest(...)` and `sweep(...)`; preparation is idempotent, so
+stages whose ids remain internal to `executeBacktest(...)` and `sweep(...)`; preparation is idempotent, so
 that encapsulation does not duplicate work. See the section guides from the [README](../README.md)
 for caller behavior and lifecycle details.

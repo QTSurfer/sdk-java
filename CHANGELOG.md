@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-08-30
+
+### Changed 🔄
+
+- Read methods now use the `get…` convention: `getExchanges`, `getInstruments`, `getStrategies`,
+  `getStrategyState`, `getBacktestResult`, dataset reads, and `Sweep.getResults`,
+  `Sweep.getSensitivity`, `Sweep.getAccepted`, `Sweep.getState`, and `Sweep.getProgress`.
+  `executeBacktest` and `downloadTickers` / `downloadKlines` name their side-effecting operations.
+  The former names remain deprecated aliases for source compatibility during the 0.x line.
+- Market-data documentation now lives at `docs/market_data.md`, covering exchange discovery,
+  instrument coverage, and streamed hourly ticker/kline downloads.
+
 ## [0.19.0] — 2026-08-29
 
 Built against `com.qtsurfer:api-client-java` `0.14.0` (OpenAPI spec `0.111.2`).

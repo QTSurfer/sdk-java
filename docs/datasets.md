@@ -43,7 +43,7 @@ import com.qtsurfer.api.client.model.DatasetUploadState;
 DatasetUploadState state;
 do {
     Thread.sleep(1_000);
-    state = qts.datasetUpload(created.getDatasetId(), created.getUploadId());
+    state = qts.getDatasetUpload(created.getDatasetId(), created.getUploadId());
 } while (state.getStatus() == DatasetUploadState.StatusEnum.INGESTING
         || state.getStatus() == DatasetUploadState.StatusEnum.UPLOADING);
 
@@ -84,7 +84,7 @@ BacktestRequest request = BacktestRequest.builder()
         .to("2026-04-14T00:00:00Z")
         .build();
 
-ResultMap result = qts.backtest(request).join();
+ResultMap result = qts.executeBacktest(request).join();
 ```
 
 The same dataset fields are available on `SweepRequest`. The normal backtest and sweep workflows

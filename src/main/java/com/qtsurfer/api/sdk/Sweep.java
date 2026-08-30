@@ -141,14 +141,22 @@ public final class Sweep {
      *
      * @return the acceptance record
      */
-    public ExecuteSweepAccepted accepted() { return accepted; }
+    public ExecuteSweepAccepted getAccepted() { return accepted; }
+
+    /** @deprecated Use {@link #getAccepted()}. */
+    @Deprecated(forRemoval = false)
+    public ExecuteSweepAccepted accepted() { return getAccepted(); }
 
     /**
      * Local snapshot of the sweep lifecycle; does not itself contact the server.
      *
      * @return the current state
      */
-    public State state() { return state.get(); }
+    public State getState() { return state.get(); }
+
+    /** @deprecated Use {@link #getState()}. */
+    @Deprecated(forRemoval = false)
+    public State state() { return getState(); }
 
     /**
      * Reactive-streams feed of progress events; terminates when the sweep
@@ -156,7 +164,11 @@ public final class Sweep {
      *
      * @return the progress publisher
      */
-    public Flow.Publisher<SweepProgressEvent> progress() { return progress; }
+    public Flow.Publisher<SweepProgressEvent> getProgress() { return progress; }
+
+    /** @deprecated Use {@link #getProgress()}. */
+    @Deprecated(forRemoval = false)
+    public Flow.Publisher<SweepProgressEvent> progress() { return getProgress(); }
 
     /**
      * Resolves with the final leaderboard once the sweep stops advancing.
@@ -263,8 +275,8 @@ public final class Sweep {
      * @return the leaderboard as it stands now, in the requested view
      * @throws QTSError on HTTP 4xx/5xx or transport failure
      */
-    public ExecuteSweepResult results(SweepOrder order) {
-        return results(order, null);
+    public ExecuteSweepResult getResults(SweepOrder order) {
+        return getResults(order, null);
     }
 
     /**
@@ -305,9 +317,17 @@ public final class Sweep {
      * @return the leaderboard as it stands now, in the requested view
      * @throws QTSError on HTTP 4xx/5xx or transport failure
      */
-    public ExecuteSweepResult results(SweepOrder order, SweepRanking ranking) {
+    public ExecuteSweepResult getResults(SweepOrder order, SweepRanking ranking) {
         return resultsReader.apply(order, ranking);
     }
+
+    /** @deprecated Use {@link #getResults(SweepOrder)}. */
+    @Deprecated(forRemoval = false)
+    public ExecuteSweepResult results(SweepOrder order) { return getResults(order); }
+
+    /** @deprecated Use {@link #getResults(SweepOrder, SweepRanking)}. */
+    @Deprecated(forRemoval = false)
+    public ExecuteSweepResult results(SweepOrder order, SweepRanking ranking) { return getResults(order, ranking); }
 
     /**
      * Ask the platform to stop the sweep between parameter vectors.
@@ -339,8 +359,8 @@ public final class Sweep {
      * @return how the objective responds to each axis
      * @throws QTSError on HTTP 4xx/5xx or transport failure
      */
-    public SweepSensitivity sensitivity() {
-        return sensitivity(null);
+    public SweepSensitivity getSensitivity() {
+        return getSensitivity(null);
     }
 
     /**
@@ -385,9 +405,17 @@ public final class Sweep {
      * @throws QTSError on HTTP 4xx/5xx or transport failure
      * @see SweepMarginal
      */
-    public SweepSensitivity sensitivity(SweepObjective objective) {
+    public SweepSensitivity getSensitivity(SweepObjective objective) {
         return sensitivityReader.apply(objective);
     }
+
+    /** @deprecated Use {@link #getSensitivity()}. */
+    @Deprecated(forRemoval = false)
+    public SweepSensitivity sensitivity() { return getSensitivity(); }
+
+    /** @deprecated Use {@link #getSensitivity(SweepObjective)}. */
+    @Deprecated(forRemoval = false)
+    public SweepSensitivity sensitivity(SweepObjective objective) { return getSensitivity(objective); }
 
     /**
      * Compact debug representation including the sweep id and current state.
