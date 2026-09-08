@@ -1,6 +1,6 @@
 # Dataset uploads
 
-Use a dataset when the backtest or sweep should run against your own ticker CSV rather than a
+Use a dataset when the backtest or sweep should run against your own ticker CSV or Parquet rather than a
 managed exchange. The SDK performs the authenticated API calls and streams the file directly to a
 presigned storage target; the direct transfer intentionally carries no API credentials.
 
@@ -28,8 +28,10 @@ API key. It accepts a readable regular file only. A failed transfer raises `QTSU
 HTTP rejection is available through `statusCode()`. The error never retains the presigned URL,
 whose query parameters are credentials.
 
-The CSV must have a header and `timestamp` and `close` columns. Timestamp format and cadence are
-discovered at ingest. See the API's [dataset format reference](https://qtsurfer.github.io/docs/datasets.html)
+CSV uploads must have a header and `timestamp` and `close` columns. Parquet uploads are accepted
+as-is. Timestamp format and cadence are discovered at ingest. A ready dataset's `dataUrl` and
+`dataFormat` identify the stored downloadable representation; inspect `dataFormat` rather than
+assuming it matches the uploaded file. See the API's [dataset format reference](https://qtsurfer.github.io/docs/datasets.html)
 for the optional columns and validation rules.
 
 ## Wait for ingest

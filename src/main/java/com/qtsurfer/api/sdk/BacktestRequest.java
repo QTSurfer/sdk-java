@@ -1,6 +1,8 @@
 package com.qtsurfer.api.sdk;
 
 import com.qtsurfer.api.client.model.EquityCurveOptions;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -50,6 +52,8 @@ import java.util.Objects;
  *                         one; only valid alongside a non-null {@code datasetId}
  * @param equityCurve      requested server-side transform for the inline result curve; {@code null}
  *                         keeps the platform defaults
+ * @param params           scalar strategy properties for this run; an empty map keeps every
+ *                         declared property at its default
  */
 public record BacktestRequest(
         String strategy,
@@ -60,11 +64,20 @@ public record BacktestRequest(
         Boolean storeSignals,
         String datasetId,
         String datasetVersionId,
-        EquityCurveOptions equityCurve
+        EquityCurveOptions equityCurve,
+        Map<String, Object> params
 ) {
     public BacktestRequest(String strategy, String exchangeId, String instrument, String from, String to,
                            Boolean storeSignals, String datasetId, String datasetVersionId) {
-        this(strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId, null);
+        this(strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId, null, Map.of());
+    }
+
+    /** Compatibility constructor for callers that set an equity-curve transform. */
+    public BacktestRequest(String strategy, String exchangeId, String instrument, String from, String to,
+                           Boolean storeSignals, String datasetId, String datasetVersionId,
+                           EquityCurveOptions equityCurve) {
+        this(strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId,
+                equityCurve, Map.of());
     }
     public BacktestRequest {
         Objects.requireNonNull(strategy, "strategy");
@@ -80,6 +93,19 @@ public record BacktestRequest(
         }
         Objects.requireNonNull(from, "from");
         Objects.requireNonNull(to, "to");
+        params = params == null ? Map.of() : Map.copyOf(params);
+        if (params.size() > 64) {
+            throw new IllegalArgumentException("params may hold at most 64 properties");
+        }
+        for (Map.Entry<String, Object> entry : params.entrySet()) {
+            if (entry.getKey().isBlank()) {
+                throw new IllegalArgumentException("params keys must not be blank");
+            }
+            Object value = entry.getValue();
+            if (!(value instanceof Number) && !(value instanceof String) && !(value instanceof Boolean)) {
+                throw new IllegalArgumentException("params values must be numbers, strings, or booleans");
+            }
+        }
     }
 
     public static Builder builder() { return new Builder(); }
@@ -94,6 +120,7 @@ public record BacktestRequest(
         private String datasetId;
         private String datasetVersionId;
         private EquityCurveOptions equityCurve;
+        private final Map<String, Object> params = new LinkedHashMap<>();
 
         public Builder strategy(String strategy) { this.strategy = strategy; return this; }
         public Builder exchangeId(String exchangeId) { this.exchangeId = exchangeId; return this; }
@@ -108,10 +135,21 @@ public record BacktestRequest(
          * @return this builder
          */
         public Builder equityCurve(EquityCurveOptions equityCurve) { this.equityCurve = equityCurve; return this; }
+        /** Add or replace one scalar strategy property for this run. */
+        public Builder param(String name, Object value) {
+            this.params.put(Objects.requireNonNull(name, "name"), Objects.requireNonNull(value, "value"));
+            return this;
+        }
+        /** Replace the scalar strategy properties for this run. */
+        public Builder params(Map<String, Object> params) {
+            this.params.clear();
+            this.params.putAll(Objects.requireNonNull(params, "params"));
+            return this;
+        }
 
         public BacktestRequest build() {
             return new BacktestRequest(
-                    strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId, equityCurve);
+                    strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId, equityCurve, params);
         }
     }
 }

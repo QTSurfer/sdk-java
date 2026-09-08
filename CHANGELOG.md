@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-09-08
+
+Built against `com.qtsurfer:api-client-java` `0.15.0` (OpenAPI spec `0.115.1`).
+
+### Added ✨
+
+- `BacktestRequest.params` accepts up to 64 scalar strategy properties for one execution. The SDK
+  validates the map before submitting it and `BacktestWorkflow` passes it through to the API.
+
+### Changed 🔄
+
+- Dataset documentation accepts parquet as well as CSV, and directs readers to `dataFormat` before
+  choosing a reader for a stored version.
+
 ## [0.20.0] — 2026-08-30
 
 ### Changed 🔄

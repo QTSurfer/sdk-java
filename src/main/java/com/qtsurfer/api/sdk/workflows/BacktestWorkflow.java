@@ -5,6 +5,7 @@ import com.qtsurfer.api.client.model.AcceptedJob;
 import com.qtsurfer.api.client.model.BacktestJobResult;
 import com.qtsurfer.api.client.model.DataSourceType;
 import com.qtsurfer.api.client.model.ExecuteBacktestRequest;
+import com.qtsurfer.api.client.model.ScalarStrategyParamValue;
 import com.qtsurfer.api.client.model.EquityCurveOutMode;
 import com.qtsurfer.api.client.model.EquityCurveResult;
 import com.qtsurfer.api.client.model.JobState;
@@ -34,6 +35,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
+import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.SubmissionPublisher;
@@ -180,7 +184,31 @@ public final class BacktestWorkflow {
         if (req.equityCurve() != null) {
             body.equityCurve(req.equityCurve());
         }
+        if (!req.params().isEmpty()) {
+            body.params(wireParams(req.params()));
+        }
         return body;
+    }
+
+    private static Map<String, ScalarStrategyParamValue> wireParams(Map<String, Object> params) {
+        Map<String, ScalarStrategyParamValue> wire = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : params.entrySet()) {
+            Object value = entry.getValue();
+            if (value instanceof Boolean bool) {
+                wire.put(entry.getKey(), new ScalarStrategyParamValue(bool));
+            } else if (value instanceof String string) {
+                wire.put(entry.getKey(), new ScalarStrategyParamValue(string));
+            } else if (value instanceof Number number) {
+                try {
+                    wire.put(entry.getKey(), new ScalarStrategyParamValue(new BigDecimal(number.toString())));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("params numbers must be finite decimal values", e);
+                }
+            } else {
+                throw new IllegalArgumentException("params values must be numbers, strings, or booleans");
+            }
+        }
+        return wire;
     }
 
     private Backtest buildJob(

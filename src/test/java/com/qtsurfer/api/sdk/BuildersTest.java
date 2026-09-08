@@ -3,6 +3,7 @@ package com.qtsurfer.api.sdk;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -87,6 +88,30 @@ class BuildersTest {
                 .from("2026-04-13T00:00:00Z")
                 .to("2026-04-14T00:00:00Z")
                 .build());
+    }
+
+    @Test
+    void backtestRequestKeepsScalarParamsImmutable() {
+        BacktestRequest request = BacktestRequest.builder()
+                .strategy("class S {}")
+                .exchangeId("binance")
+                .instrument("BTC/USDT")
+                .from("2026-04-13T00:00:00Z")
+                .to("2026-04-14T00:00:00Z")
+                .params(Map.of("ema.fast", 9, "enabled", true, "label", "fast"))
+                .build();
+
+        assertEquals(Map.of("ema.fast", 9, "enabled", true, "label", "fast"), request.params());
+        assertThrows(UnsupportedOperationException.class, () -> request.params().put("other", 1));
+    }
+
+    @Test
+    void backtestRequestKeepsThePreParamsConstructor() {
+        BacktestRequest request = new BacktestRequest("class S {}", "binance", "BTC/USDT",
+                "2026-04-13T00:00:00Z", "2026-04-14T00:00:00Z", null, null, null,
+                new com.qtsurfer.api.client.model.EquityCurveOptions());
+
+        assertTrue(request.params().isEmpty());
     }
 
     @Test

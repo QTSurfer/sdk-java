@@ -6,6 +6,9 @@
 both asynchronous stages, and completes with `ResultMap`. Polling uses Failsafe exponential backoff
 and optional stage timeouts.
 
+Set scalar strategy properties for one execution with `param` or `params`; omit them to use the
+declared defaults. A completed `ResultMap` echoes the values in `getParams()`.
+
 ```java
 ResultMap result = qts.executeBacktest(BacktestRequest.builder()
         .strategy(source)
@@ -13,6 +16,8 @@ ResultMap result = qts.executeBacktest(BacktestRequest.builder()
         .instrument("BTC/USDT")
         .from("2026-04-13T00:00:00Z")
         .to("2026-04-14T00:00:00Z")
+        .param("ema.fast.period", 9)
+        .param("ema.slow.period", 21)
         .build()).join();
 ```
 

@@ -24,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -111,6 +112,32 @@ class BacktestWorkflowTest {
         verify(backtestingApi).executeBacktest(eq("binance"), eq(DataSourceType.TICKER), execBody.capture());
         assertEquals("prep-1", execBody.getValue().getPrepareJobId());
         assertEquals("strategy-abc", execBody.getValue().getStrategyId());
+    }
+
+    @Test
+    void sendsScalarParamsWithTheExecuteRequest() throws Exception {
+        when(strategyClient.compile("class S {}")).thenReturn("strategy-abc");
+        when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
+                .thenReturn(new AcceptedJob().jobId("prep-1"));
+        when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
+                .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED));
+        when(backtestingApi.executeBacktest(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestRequest.class)))
+                .thenReturn(new AcceptedJob().jobId("exec-1"));
+        when(backtestingApi.getBacktestResult(anyString(), eq(DataSourceType.TICKER), eq("exec-1")))
+                .thenReturn(new BacktestJobResult().state(new JobState().status(JobState.StatusEnum.COMPLETED))
+                        .results(new ResultMap()));
+
+        BacktestRequest request = BacktestRequest.builder()
+                .strategy("class S {}").exchangeId("binance").instrument("BTC/USDT")
+                .from("2026-01-01").to("2026-01-02")
+                .param("ema.fast", 9).param("enabled", true).param("label", "fast").build();
+        workflow.runFull(request, fastOpts()).get(10, TimeUnit.SECONDS);
+
+        ArgumentCaptor<ExecuteBacktestRequest> body = ArgumentCaptor.forClass(ExecuteBacktestRequest.class);
+        verify(backtestingApi).executeBacktest(anyString(), eq(DataSourceType.TICKER), body.capture());
+        assertEquals(new BigDecimal("9"), body.getValue().getParams().get("ema.fast").getActualInstance());
+        assertEquals(Boolean.TRUE, body.getValue().getParams().get("enabled").getActualInstance());
+        assertEquals("fast", body.getValue().getParams().get("label").getActualInstance());
     }
 
     @Test
