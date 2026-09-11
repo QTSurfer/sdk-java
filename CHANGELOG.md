@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-09-11
+
+Built against `com.qtsurfer:api-client-java` `0.16.0` (OpenAPI spec `0.119.0`).
+
+### Added ✨
+
+- Dataset imports and their state are available through `importDataset` and `getDatasetImport`.
+- `BacktestRequest.baseConfig` forwards optional execution capital, fee, and position configuration.
+
 ## [0.21.0] — 2026-09-08
 
 Built against `com.qtsurfer:api-client-java` `0.15.0` (OpenAPI spec `0.115.1`).

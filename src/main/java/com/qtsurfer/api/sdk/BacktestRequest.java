@@ -1,6 +1,7 @@
 package com.qtsurfer.api.sdk;
 
 import com.qtsurfer.api.client.model.EquityCurveOptions;
+import com.qtsurfer.api.client.model.SweepBaseConfig;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -52,6 +53,8 @@ import java.util.Objects;
  *                         one; only valid alongside a non-null {@code datasetId}
  * @param equityCurve      requested server-side transform for the inline result curve; {@code null}
  *                         keeps the platform defaults
+ * @param baseConfig       optional execution capital, fee, and position configuration; {@code null}
+ *                         keeps the platform defaults
  * @param params           scalar strategy properties for this run; an empty map keeps every
  *                         declared property at its default
  */
@@ -65,11 +68,13 @@ public record BacktestRequest(
         String datasetId,
         String datasetVersionId,
         EquityCurveOptions equityCurve,
+        SweepBaseConfig baseConfig,
         Map<String, Object> params
 ) {
     public BacktestRequest(String strategy, String exchangeId, String instrument, String from, String to,
                            Boolean storeSignals, String datasetId, String datasetVersionId) {
-        this(strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId, null, Map.of());
+        this(strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId,
+                null, null, Map.of());
     }
 
     /** Compatibility constructor for callers that set an equity-curve transform. */
@@ -77,7 +82,7 @@ public record BacktestRequest(
                            Boolean storeSignals, String datasetId, String datasetVersionId,
                            EquityCurveOptions equityCurve) {
         this(strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId,
-                equityCurve, Map.of());
+                equityCurve, null, Map.of());
     }
     public BacktestRequest {
         Objects.requireNonNull(strategy, "strategy");
@@ -120,6 +125,7 @@ public record BacktestRequest(
         private String datasetId;
         private String datasetVersionId;
         private EquityCurveOptions equityCurve;
+        private SweepBaseConfig baseConfig;
         private final Map<String, Object> params = new LinkedHashMap<>();
 
         public Builder strategy(String strategy) { this.strategy = strategy; return this; }
@@ -135,6 +141,11 @@ public record BacktestRequest(
          * @return this builder
          */
         public Builder equityCurve(EquityCurveOptions equityCurve) { this.equityCurve = equityCurve; return this; }
+        /**
+         * @param baseConfig optional execution capital, fee, and position configuration
+         * @return this builder
+         */
+        public Builder baseConfig(SweepBaseConfig baseConfig) { this.baseConfig = baseConfig; return this; }
         /** Add or replace one scalar strategy property for this run. */
         public Builder param(String name, Object value) {
             this.params.put(Objects.requireNonNull(name, "name"), Objects.requireNonNull(value, "value"));
@@ -149,7 +160,8 @@ public record BacktestRequest(
 
         public BacktestRequest build() {
             return new BacktestRequest(
-                    strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId, equityCurve, params);
+                    strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId,
+                    equityCurve, baseConfig, params);
         }
     }
 }

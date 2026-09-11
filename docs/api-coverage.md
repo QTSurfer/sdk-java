@@ -11,7 +11,7 @@ latter.
 | Strategy | `compile`, `validateStrategy`, `getStrategyState`, `getStrategies`, `deleteStrategy`, `getStrategyCode` |
 | Backtesting | `executeBacktest(...)` workflow handles prepare and execute; `getBacktestResult(...)` reads an existing run; `Backtest.cancel()` cancels one |
 | Sweeps | `sweep(...)` workflow; `Sweep.getResults(...)`, `Sweep.cancel()`, `Sweep.getSensitivity(...)`, `getSweepRunEquityCurve(...)` |
-| Dataset | `createDataset`, `getDatasets`, `getDataset`, `deleteDataset`, `openDatasetUpload`, `uploadDatasetFile`, `finalizeDatasetUpload`, `getDatasetUpload` |
+| Dataset | `createDataset`, `importDataset`, `getDatasetImport`, `getDatasets`, `getDataset`, `deleteDataset`, `openDatasetUpload`, `uploadDatasetFile`, `finalizeDatasetUpload`, `getDatasetUpload` |
 
 The SDK intentionally does not expose standalone `prepare` or `execute` methods. They are workflow
 stages whose ids remain internal to `executeBacktest(...)` and `sweep(...)`; preparation is idempotent, so

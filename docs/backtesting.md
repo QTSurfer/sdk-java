@@ -9,6 +9,10 @@ and optional stage timeouts.
 Set scalar strategy properties for one execution with `param` or `params`; omit them to use the
 declared defaults. A completed `ResultMap` echoes the values in `getParams()`.
 
+Set `baseConfig` when this run needs different initial funding, fees, or position settings from the
+platform defaults. It accepts the generated `SweepBaseConfig` model and is passed unchanged to the
+execution request.
+
 ```java
 ResultMap result = qts.executeBacktest(BacktestRequest.builder()
         .strategy(source)

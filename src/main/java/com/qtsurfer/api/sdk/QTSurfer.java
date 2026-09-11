@@ -10,6 +10,9 @@ import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.CreateDatasetRequest;
 import com.qtsurfer.api.client.model.Dataset;
 import com.qtsurfer.api.client.model.DatasetCreated;
+import com.qtsurfer.api.client.model.DatasetImportCreated;
+import com.qtsurfer.api.client.model.DatasetImportRequest;
+import com.qtsurfer.api.client.model.DatasetImportState;
 import com.qtsurfer.api.client.model.DatasetUploadState;
 import com.qtsurfer.api.client.model.DatasetUploadSession;
 import com.qtsurfer.api.client.model.DatasetWithLinks;
@@ -513,6 +516,27 @@ public final class QTSurfer {
             return datasetApi.createDataset(request);
         } catch (ApiException e) {
             throw new QTSError("createDataset call failed: " + describe(e), e);
+        }
+    }
+
+    /** Start an external-history import into a new dataset. */
+    public DatasetImportCreated importDataset(DatasetImportRequest request) {
+        Objects.requireNonNull(request, "request");
+        try {
+            return datasetApi.importDataset(request);
+        } catch (ApiException e) {
+            throw new QTSError("importDataset call failed: " + describe(e), e);
+        }
+    }
+
+    /** Read the fetch and ingest state for one external-history import. */
+    public DatasetImportState getDatasetImport(String datasetId, String importId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        Objects.requireNonNull(importId, "importId");
+        try {
+            return datasetApi.getDatasetImport(datasetId, importId);
+        } catch (ApiException e) {
+            throw new QTSError("datasetImport call failed: " + describe(e), e);
         }
     }
 

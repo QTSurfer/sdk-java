@@ -81,7 +81,7 @@ The README is an entry point; the source documentation follows the API's functio
 | Equity-curve format and transforms | [API guide](https://qtsurfer.github.io/docs/equity_curves.html) |
 | Strategies and validation | [docs/strategy.md](docs/strategy.md) |
 | Writing Java strategy source | [API guide](https://qtsurfer.github.io/docs/strategy_coding.html) |
-| Caller-uploaded datasets | [docs/datasets.md](docs/datasets.md) |
+| Dataset uploads and external imports | [docs/datasets.md](docs/datasets.md) |
 | Complete operation mapping | [docs/api-coverage.md](docs/api-coverage.md) |
 
 ## Development

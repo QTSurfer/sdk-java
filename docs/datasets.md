@@ -4,6 +4,37 @@ Use a dataset when the backtest or sweep should run against your own ticker CSV 
 managed exchange. The SDK performs the authenticated API calls and streams the file directly to a
 presigned storage target; the direct transfer intentionally carries no API credentials.
 
+## Import external history
+
+For supported external sources, ask the platform to fetch and ingest the history instead of uploading
+a file. Poll the import until it is `READY` or `FAILED`; a ready import includes the created dataset
+and version identifiers.
+
+```java
+import com.qtsurfer.api.client.model.DatasetImportDexRequest;
+import com.qtsurfer.api.client.model.DatasetImportRequest;
+
+import java.time.OffsetDateTime;
+
+var created = qts.importDataset(new DatasetImportRequest()
+        .name("weth-usdc-week")
+        .instrument("WETH/USDC")
+        .from(OffsetDateTime.parse("2026-08-01T00:00:00Z"))
+        .to(OffsetDateTime.parse("2026-08-08T00:00:00Z"))
+        .type(DatasetImportRequest.TypeEnum.DEX)
+        .dex(new DatasetImportDexRequest()
+                .network(DatasetImportDexRequest.NetworkEnum.ETHEREUM)
+                .id(DatasetImportDexRequest.IdEnum.UNISWAP)
+                .version(DatasetImportDexRequest.VersionEnum.V3)
+                .contract("0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640")));
+
+var state = qts.getDatasetImport(created.getDatasetId(), created.getImportId());
+```
+
+The generated `DatasetImportRequest` model exposes the source-specific request fields. Keep polling
+with `getDatasetImport` while its status is `FETCHING` or `INGESTING`, then inspect its error message
+when it is `FAILED`.
+
 ## Upload a first version
 
 Create the dataset and use the returned `DatasetCreated` value as the first upload session. It is

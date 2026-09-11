@@ -12,6 +12,9 @@ import com.qtsurfer.api.client.model.AuthTokenResponse;
 import com.qtsurfer.api.client.model.CreateDatasetRequest;
 import com.qtsurfer.api.client.model.Dataset;
 import com.qtsurfer.api.client.model.DatasetCreated;
+import com.qtsurfer.api.client.model.DatasetImportCreated;
+import com.qtsurfer.api.client.model.DatasetImportRequest;
+import com.qtsurfer.api.client.model.DatasetImportState;
 import com.qtsurfer.api.client.model.DatasetUploadState;
 import com.qtsurfer.api.client.model.DatasetUploadSession;
 import com.qtsurfer.api.client.model.DatasetWithLinks;
@@ -673,6 +676,20 @@ public final class AuthenticatedClient {
     public DatasetCreated createDataset(CreateDatasetRequest request) {
         Objects.requireNonNull(request, "request");
         return withRefreshOn401(() -> callDataset(() -> datasetApi.createDataset(request), "createDataset"));
+    }
+
+    /** Start an external-history import into a new dataset. */
+    public DatasetImportCreated importDataset(DatasetImportRequest request) {
+        Objects.requireNonNull(request, "request");
+        return withRefreshOn401(() -> callDataset(() -> datasetApi.importDataset(request), "importDataset"));
+    }
+
+    /** Read the fetch and ingest state for one external-history import. */
+    public DatasetImportState getDatasetImport(String datasetId, String importId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        Objects.requireNonNull(importId, "importId");
+        return withRefreshOn401(() -> callDataset(
+                () -> datasetApi.getDatasetImport(datasetId, importId), "datasetImport"));
     }
 
     /** List the caller's non-deleted datasets, newest first. */

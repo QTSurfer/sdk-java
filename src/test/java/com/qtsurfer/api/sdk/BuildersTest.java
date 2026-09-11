@@ -1,6 +1,7 @@
 package com.qtsurfer.api.sdk;
 
 import org.junit.jupiter.api.Test;
+import com.qtsurfer.api.client.model.SweepBaseConfig;
 
 import java.time.Duration;
 import java.util.Map;
@@ -112,6 +113,21 @@ class BuildersTest {
                 new com.qtsurfer.api.client.model.EquityCurveOptions());
 
         assertTrue(request.params().isEmpty());
+    }
+
+    @Test
+    void backtestRequestBuilderAcceptsBaseConfig() {
+        SweepBaseConfig baseConfig = new SweepBaseConfig().initialFunding(250.0);
+        BacktestRequest request = BacktestRequest.builder()
+                .strategy("class S {}")
+                .exchangeId("binance")
+                .instrument("BTC/USDT")
+                .from("2026-04-13T00:00:00Z")
+                .to("2026-04-14T00:00:00Z")
+                .baseConfig(baseConfig)
+                .build();
+
+        assertEquals(baseConfig, request.baseConfig());
     }
 
     @Test

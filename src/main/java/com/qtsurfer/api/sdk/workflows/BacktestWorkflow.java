@@ -184,6 +184,9 @@ public final class BacktestWorkflow {
         if (req.equityCurve() != null) {
             body.equityCurve(req.equityCurve());
         }
+        if (req.baseConfig() != null) {
+            body.baseConfig(req.baseConfig());
+        }
         if (!req.params().isEmpty()) {
             body.params(wireParams(req.params()));
         }
