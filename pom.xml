@@ -6,7 +6,7 @@
 
     <groupId>com.qtsurfer</groupId>
     <artifactId>sdk-java</artifactId>
-    <version>0.22.0</version>
+    <version>0.23.0</version>
     <packaging>jar</packaging>
 
     <name>QTSurfer SDK</name>

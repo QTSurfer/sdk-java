@@ -65,6 +65,8 @@ import java.util.Objects;
  *                         one; only valid alongside a non-null {@code datasetId}
  * @param equityCurve      which sweep trials retain curves and their default read transform;
  *                         {@code null} keeps the platform defaults
+ * @param storeSignals     when {@code Boolean.TRUE}, retain emitted signals for every trial;
+ *                         {@code null} keeps the platform default
  */
 public record SweepRequest(
         String strategy,
@@ -80,14 +82,15 @@ public record SweepRequest(
         WalkForwardSpec walkForward,
         String datasetId,
         String datasetVersionId,
-        EquityCurveRequest equityCurve
+        EquityCurveRequest equityCurve,
+        Boolean storeSignals
 ) {
     public SweepRequest(String strategy, String exchangeId, String instrument, String from, String to,
                         Map<String, ParamAxis> params, SweepSampler sampler, Integer samples, Long seed,
                         SweepObjective objective, WalkForwardSpec walkForward, String datasetId,
                         String datasetVersionId) {
         this(strategy, exchangeId, instrument, from, to, params, sampler, samples, seed, objective,
-                walkForward, datasetId, datasetVersionId, null);
+                walkForward, datasetId, datasetVersionId, null, null);
     }
     /**
      * @throws NullPointerException     when a required field is missing, or when neither
@@ -140,6 +143,7 @@ public record SweepRequest(
         private String datasetId;
         private String datasetVersionId;
         private EquityCurveRequest equityCurve;
+        private Boolean storeSignals;
 
         /**
          * @param strategy strategy source code (Java)
@@ -261,6 +265,9 @@ public record SweepRequest(
          */
         public Builder equityCurve(EquityCurveRequest equityCurve) { this.equityCurve = equityCurve; return this; }
 
+        /** Request storage of emitted signals for every sweep trial. */
+        public Builder storeSignals(boolean storeSignals) { this.storeSignals = storeSignals; return this; }
+
         /**
          * Build the request.
          *
@@ -270,7 +277,7 @@ public record SweepRequest(
             return new SweepRequest(
                     strategy, exchangeId, instrument, from, to,
                     params, sampler, samples, seed, objective, walkForward,
-                    datasetId, datasetVersionId, equityCurve);
+                    datasetId, datasetVersionId, equityCurve, storeSignals);
         }
     }
 }

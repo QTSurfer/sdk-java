@@ -162,6 +162,9 @@ public final class SweepWorkflow {
         if (req.equityCurve() != null) {
             body.equityCurve(req.equityCurve());
         }
+        if (req.storeSignals() != null) {
+            body.storeSignals(req.storeSignals());
+        }
         return body;
     }
 

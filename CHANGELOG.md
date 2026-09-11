@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-09-11
+
+### Added ✨
+
+- `SweepRequest.storeSignals` requests retained signals for sweep trials.
+
 ## [0.22.0] — 2026-09-11
 
 Built against `com.qtsurfer:api-client-java` `0.16.0` (OpenAPI spec `0.119.0`).
