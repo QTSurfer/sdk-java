@@ -1,6 +1,8 @@
 # Live execution
 
-Examples assume an authenticated `QTSurfer qts`; see [auth.md](auth.md) for setup and token ownership.
+Live methods are available on `QTSurfer` (caller-managed JWT) and API-key-authenticated
+`AuthenticatedClient` (proactive refresh and retry-on-401). For a long-running process, prefer the
+authenticated client; see [auth.md](auth.md) for setup and token ownership.
 
 Live execution runs a compiled strategy continuously. It is separate from a backtest: start it deliberately, poll its state, and stop it when it is no longer wanted. See [account.md](account.md) before enabling retained signals on a high-volume run.
 
@@ -45,11 +47,17 @@ Use the generated-request overload only as an advanced escape hatch for a genera
 
 ## Discover public runs
 
-`listPublicLive(cursor, limit)` lists only public runs. `cursor` continues a previous page and `limit` bounds its size; pass `null` for either default. Follow the response next link rather than synthesising cursors.
+`listLive(cursor, limit)` lists every run owned by the account, including sandbox and stopped runs.
+`listPublicLive(cursor, limit)` lists only public runs. These are distinct catalogues. `cursor`
+continues a previous page and `limit` bounds its size; pass `null` for either API default. Follow the
+response next link rather than synthesising cursors.
 
 ```java
 PublicLiveListResponse firstPage = qts.listPublicLive(null, 25);
 firstPage.getRuns().forEach(item -> System.out.println(item.getRunId()));
+
+LiveListResponse ownedRuns = qts.listLive(null, 25);
+ownedRuns.getRuns().forEach(item -> System.out.println(item.getRunId() + " " + item.getState()));
 ```
 
 ## Retained signal history

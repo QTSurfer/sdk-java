@@ -13,6 +13,10 @@ QTSurfer qts = QTSurfer.builder()
 
 ## Read tier limits
 
+Both `QTSurfer` and API-key-authenticated `AuthenticatedClient` expose these operations. Use the
+authenticated client when the application already exchanges an API key and needs automatic token
+refresh; both surfaces return the same generated response types.
+
 `getAccount()` returns the caller id, tier, and the limits that apply to the account.
 
 ```java

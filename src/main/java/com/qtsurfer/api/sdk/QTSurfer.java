@@ -29,6 +29,7 @@ import com.qtsurfer.api.client.model.LiveParamsUpdateResult;
 import com.qtsurfer.api.client.model.LiveRun;
 import com.qtsurfer.api.client.model.LiveRunCompact;
 import com.qtsurfer.api.client.model.LiveSignalPage;
+import com.qtsurfer.api.client.model.LiveListResponse;
 import com.qtsurfer.api.client.model.PublicLiveListResponse;
 import com.qtsurfer.api.client.model.StartLiveRequest;
 import com.qtsurfer.api.client.model.UpdateLiveParamsRequest;
@@ -917,6 +918,15 @@ public final class QTSurfer {
             return liveExecutionApi.listPublicLive(cursor, limit);
         } catch (ApiException e) {
             throw new QTSError("listPublicLive call failed: " + describe(e), e);
+        }
+    }
+
+    /** List the authenticated account's live runs, newest first. */
+    public LiveListResponse listLive(String cursor, Integer limit) {
+        try {
+            return liveExecutionApi.listLive(cursor, limit);
+        } catch (ApiException e) {
+            throw new QTSError("listLive call failed: " + describe(e), e);
         }
     }
 

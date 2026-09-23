@@ -1,13 +1,17 @@
 package com.qtsurfer.api.sdk.auth;
 
+import com.qtsurfer.api.client.api.AccountApi;
 import com.qtsurfer.api.client.api.AuthApi;
 import com.qtsurfer.api.client.api.BacktestingApi;
 import com.qtsurfer.api.client.api.DatasetApi;
 import com.qtsurfer.api.client.api.ExchangeApi;
+import com.qtsurfer.api.client.api.LiveExecutionApi;
 import com.qtsurfer.api.client.api.StrategyApi;
 import com.qtsurfer.api.client.binary.ExchangeBinaryDownloads;
 import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.ApiException;
+import com.qtsurfer.api.client.model.Account;
+import com.qtsurfer.api.client.model.AccountUsage;
 import com.qtsurfer.api.client.model.AuthTokenResponse;
 import com.qtsurfer.api.client.model.CreateDatasetRequest;
 import com.qtsurfer.api.client.model.Dataset;
@@ -23,8 +27,17 @@ import com.qtsurfer.api.client.model.EquityCurveResult;
 import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.FinalizeDatasetUpload202Response;
 import com.qtsurfer.api.client.model.InstrumentDetail;
-import com.qtsurfer.api.client.model.StrategySummary;
+import com.qtsurfer.api.client.model.LiveParamsUpdateResult;
+import com.qtsurfer.api.client.model.LiveListResponse;
+import com.qtsurfer.api.client.model.LiveRun;
+import com.qtsurfer.api.client.model.LiveRunCompact;
+import com.qtsurfer.api.client.model.LiveSignalPage;
+import com.qtsurfer.api.client.model.PublicLiveListResponse;
+import com.qtsurfer.api.client.model.StartLiveRequest;
+import com.qtsurfer.api.client.model.UpdateLiveParamsRequest;
+import com.qtsurfer.api.client.model.UpdateLiveRequest;
 import com.qtsurfer.api.client.model.ResultMap;
+import com.qtsurfer.api.client.model.StrategySummary;
 import com.qtsurfer.api.client.model.StrategyState;
 import com.qtsurfer.api.sdk.BacktestOptions;
 import com.qtsurfer.api.sdk.BoundedEquityCurve;
@@ -35,6 +48,7 @@ import com.qtsurfer.api.sdk.Strategy;
 import com.qtsurfer.api.sdk.Sweep;
 import com.qtsurfer.api.sdk.SweepOptions;
 import com.qtsurfer.api.sdk.SweepRequest;
+import com.qtsurfer.api.sdk.UpdateLiveParamsRequestBuilder;
 import com.qtsurfer.api.sdk.ValidationOutcome;
 import com.qtsurfer.api.sdk.errors.QTSAuthError;
 import com.qtsurfer.api.sdk.errors.QTSDownloadError;
@@ -47,13 +61,18 @@ import com.qtsurfer.api.sdk.workflows.BacktestWorkflow;
 import com.qtsurfer.api.sdk.workflows.SweepWorkflow;
 
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URLDecoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -113,6 +132,8 @@ public final class AuthenticatedClient {
     private final ExchangeApi exchangeApi;
     private final StrategyApi strategyApi;
     private final DatasetApi datasetApi;
+    private final AccountApi accountApi;
+    private final LiveExecutionApi liveExecutionApi;
     private final AtomicReference<AuthTokenResponse> cached = new AtomicReference<>();
 
     /**
@@ -132,7 +153,9 @@ public final class AuthenticatedClient {
             ExchangeBinaryDownloads downloads,
             ExchangeApi exchangeApi,
             StrategyApi strategyApi,
-            DatasetApi datasetApi) {
+            DatasetApi datasetApi,
+            AccountApi accountApi,
+            LiveExecutionApi liveExecutionApi) {
         this.options = options;
         this.authApi = authApi;
         this.backtestWorkflow = backtestWorkflow;
@@ -141,6 +164,8 @@ public final class AuthenticatedClient {
         this.exchangeApi = exchangeApi;
         this.strategyApi = strategyApi;
         this.datasetApi = datasetApi;
+        this.accountApi = accountApi;
+        this.liveExecutionApi = liveExecutionApi;
     }
 
     /** Configuration in use by this session. */
@@ -755,6 +780,99 @@ public final class AuthenticatedClient {
                 () -> datasetApi.openDatasetUpload(datasetId), "openDatasetUpload"));
     }
 
+    /** Read the authenticated account's tier and limits. */
+    public Account getAccount() {
+        return withRefreshOn401(() -> callDataset(accountApi::getAccount, "getAccount"));
+    }
+
+    /** Read current account storage consumption, including retained signals. */
+    public AccountUsage getAccountUsage() {
+        return withRefreshOn401(() -> callDataset(accountApi::getAccountUsage, "getAccountUsage"));
+    }
+
+    /** Start a compiled strategy's live run. */
+    public LiveRun startLive(String strategyId, StartLiveRequest request) {
+        Objects.requireNonNull(strategyId, "strategyId");
+        Objects.requireNonNull(request, "request");
+        return withRefreshOn401(() -> callDataset(
+                () -> liveExecutionApi.startLive(strategyId, request), "startLive"));
+    }
+
+    /** Read a strategy's active or most recent live run. */
+    public LiveRun getLive(String strategyId) {
+        Objects.requireNonNull(strategyId, "strategyId");
+        return withRefreshOn401(() -> callDataset(
+                () -> liveExecutionApi.getLive(strategyId), "getLive"));
+    }
+
+    /** Request that a strategy's live run stop. */
+    public LiveRun stopLive(String strategyId) {
+        Objects.requireNonNull(strategyId, "strategyId");
+        return withRefreshOn401(() -> callDataset(
+                () -> liveExecutionApi.stopLive(strategyId), "stopLive"));
+    }
+
+    /** List the authenticated account's live runs, newest first. */
+    public LiveListResponse listLive(String cursor, Integer limit) {
+        return withRefreshOn401(() -> callDataset(
+                () -> liveExecutionApi.listLive(cursor, limit), "listLive"));
+    }
+
+    /** List public live runs, newest first. */
+    public PublicLiveListResponse listPublicLive(String cursor, Integer limit) {
+        return withRefreshOn401(() -> callDataset(
+                () -> liveExecutionApi.listPublicLive(cursor, limit), "listPublicLive"));
+    }
+
+    /** Update mutable metadata for a live run. */
+    public LiveRunCompact updateLive(String runId, UpdateLiveRequest request) {
+        Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(request, "request");
+        return withRefreshOn401(() -> callDataset(
+                () -> liveExecutionApi.updateLive(runId, request), "updateLive"));
+    }
+
+    /** Update live strategy parameters through a typed request. */
+    public LiveParamsUpdateResult updateLiveParams(String runId, UpdateLiveParamsRequest request) {
+        Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(request, "request");
+        return withRefreshOn401(() -> callDataset(
+                () -> liveExecutionApi.updateLiveParams(runId, request), "updateLiveParams"));
+    }
+
+    /** Update live strategy parameters using the SDK's fluent request builder. */
+    public LiveParamsUpdateResult updateLiveParams(
+            String runId, UpdateLiveParamsRequestBuilder request) {
+        Objects.requireNonNull(request, "request");
+        return updateLiveParams(runId, request.build());
+    }
+
+    /** Read one oldest-first page of retained signals. */
+    public LiveSignalPage getLiveSignals(
+            String runId, Long sinceMs, String instrument, String cursor, Integer limit) {
+        Objects.requireNonNull(runId, "runId");
+        return withRefreshOn401(() -> callDataset(() -> liveExecutionApi.getLiveRunSignals(
+                runId, sinceMs, instrument, cursor, limit), "getLiveSignals"));
+    }
+
+    /** Read the next page using its server-provided continuation link. */
+    public Optional<LiveSignalPage> getNextLiveSignals(String runId, LiveSignalPage page) {
+        Objects.requireNonNull(page, "page");
+        String href = page.getLinks() == null || page.getLinks().getNext() == null
+                ? null : page.getLinks().getNext().getHref();
+        if (href == null) return Optional.empty();
+        String query = URI.create(href).getRawQuery();
+        if (query == null) {
+            throw new IllegalArgumentException("Live signal continuation link has no cursor");
+        }
+        String cursor = Arrays.stream(query.split("&"))
+                .filter(part -> part.startsWith("cursor="))
+                .map(part -> URLDecoder.decode(part.substring("cursor=".length()), StandardCharsets.UTF_8))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Live signal continuation link has no cursor"));
+        return Optional.of(getLiveSignals(runId, null, null, cursor, null));
+    }
+
     /**
      * Stream a local file to the initial presigned target without attaching API credentials.
      *
@@ -1030,9 +1148,12 @@ public final class AuthenticatedClient {
         ExchangeApi exchangeApi = new ExchangeApi(apiClient);
         StrategyApi strategyApi = new StrategyApi(apiClient);
         DatasetApi datasetApi = new DatasetApi(apiClient);
+        AccountApi accountApi = new AccountApi(apiClient);
+        LiveExecutionApi liveExecutionApi = new LiveExecutionApi(apiClient);
 
         AuthenticatedClient session = new AuthenticatedClient(
-                o, mintApi, workflow, sweeps, downloads, exchangeApi, strategyApi, datasetApi);
+                o, mintApi, workflow, sweeps, downloads, exchangeApi, strategyApi, datasetApi,
+                accountApi, liveExecutionApi);
         // Keep `shared` mirrored to the session's cache via a bridge thread-safely.
         session.linkBearerRef(shared);
 

@@ -118,6 +118,23 @@ class AuthenticatedClientTest {
                 body = ("{\"data\":[{\"id\":\"BTC/USDT\",\"base\":\"BTC\",\"quote\":\"USDT\"}],"
                         + "\"meta\":{},\"_links\":{}}").getBytes(StandardCharsets.UTF_8);
                 ctype = "application/json";
+            } else if (path.endsWith("/account/usage")) {
+                status = 200;
+                body = ("{\"datasetsUsed\":1,\"datasetBytesUsed\":12,\"signalsUsed\":2,"
+                        + "\"signalBytesUsed\":34,\"strategiesUsed\":1,\"strategyBytesUsed\":56,"
+                        + "\"storageBytesUsed\":102,\"_links\":{}}").getBytes(StandardCharsets.UTF_8);
+                ctype = "application/json";
+            } else if (path.endsWith("/account")) {
+                status = 200;
+                body = ("{\"userId\":\"user-1\",\"tier\":\"free\",\"maxDatasets\":10,"
+                        + "\"maxDatasetBytes\":1000,\"maxTotalStorageBytes\":5000,"
+                        + "\"_links\":{\"usage\":{\"href\":\"/v1/account/usage\"}}}")
+                        .getBytes(StandardCharsets.UTF_8);
+                ctype = "application/json";
+            } else if (path.endsWith("/live")) {
+                status = 200;
+                body = "{\"runs\":[],\"_links\":{}}".getBytes(StandardCharsets.UTF_8);
+                ctype = "application/json";
             } else {
                 status = 404;
                 body = new byte[0];
@@ -161,6 +178,18 @@ class AuthenticatedClientTest {
         RequestRecord first = requests.get(0);
         assertEquals("ak_explicit", first.apikey());
         assertEquals("POST", first.method());
+    }
+
+    @Test
+    void authenticatedClientReadsAccountAndLiveOperations() {
+        tokenResponses.add(jwt("jwt-live", "free"));
+        AuthenticatedClient session = QTSurfer.authenticate("ak_live", opts());
+
+        assertEquals("free", session.getAccount().getTier());
+        assertEquals(102L, session.getAccountUsage().getStorageBytesUsed());
+        assertEquals(0, session.listLive(null, 20).getRuns().size());
+        assertTrue(requests.stream().filter(r -> r.path().startsWith("/v1/account")
+                || r.path().equals("/v1/live")).allMatch(r -> "Bearer jwt-live".equals(r.authorization())));
     }
 
     @Test
