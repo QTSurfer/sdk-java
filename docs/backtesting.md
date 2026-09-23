@@ -1,5 +1,7 @@
 # Backtests and parameter sweeps
 
+Examples assume an authenticated `QTSurfer qts`; see [auth.md](auth.md) for setup and token ownership.
+
 ## Backtest workflow
 
 `executeBacktest(request)` compiles the source, prepares the requested window, submits execution, polls

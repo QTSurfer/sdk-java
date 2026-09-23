@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.25.0] — 2026-09-23
+
+### Added ✨
+
+- Read account limits with `getAccount()` and shared dataset, strategy, and signal storage with `getAccountUsage()` before enabling high-volume retained signals.
+- Manage live runs with `startLive`, `getLive`, `stopLive`, `updateLive`, `listPublicLive`, and retained-signal history through `getLiveSignals`.
+- Build parameter updates with `UpdateLiveParamsRequestBuilder`, using `param(name, value)` instead of the generated untyped request field.
+- Continue retained-signal pages with `getNextLiveSignals()` without parsing HAL links; restart without a cursor after retention expiry.
+
+### Changed 🔄
+
+- Build against `com.qtsurfer:api-client-java` `0.18.0` (OpenAPI `0.126.2`), including owned live-run listing.
+
 ## [0.24.0] — 2026-09-23
 
 ### Changed 🔄

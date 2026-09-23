@@ -1,5 +1,7 @@
 # Dataset uploads
 
+Examples assume an authenticated `QTSurfer qts`; see [auth.md](auth.md) for setup and token ownership.
+
 Use a dataset when the backtest or sweep should run against your own ticker CSV or Parquet rather than a
 managed exchange. The SDK performs the authenticated API calls and streams the file directly to a
 presigned storage target; the direct transfer intentionally carries no API credentials.

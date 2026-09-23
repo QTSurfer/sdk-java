@@ -1,5 +1,7 @@
 # Market data
 
+Examples assume an authenticated `QTSurfer qts`; see [auth.md](auth.md) for setup and token ownership.
+
 This SDK guide mirrors the API's [market-data guide](https://qtsurfer.github.io/docs/market_data.html).
 The SDK returns domain values for catalogue reads and streams downloads without buffering them.
 

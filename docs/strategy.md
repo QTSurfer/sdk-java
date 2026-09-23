@@ -1,5 +1,7 @@
 # Strategies and validation
 
+Examples assume an authenticated `QTSurfer qts`; see [auth.md](auth.md) for setup and token ownership.
+
 This guide covers registering and validating source through the SDK. For the Java strategy itself —
 indicators, `emitBuy`/`emitSell`, information signals, order configuration, and chart metadata —
 use the API's [Coding Java strategies](https://qtsurfer.github.io/docs/strategy_coding.html) guide.

@@ -1,13 +1,17 @@
 package com.qtsurfer.api.sdk;
 
 import com.qtsurfer.api.client.api.BacktestingApi;
+import com.qtsurfer.api.client.api.AccountApi;
 import com.qtsurfer.api.client.api.DatasetApi;
 import com.qtsurfer.api.client.api.ExchangeApi;
+import com.qtsurfer.api.client.api.LiveExecutionApi;
 import com.qtsurfer.api.client.api.StrategyApi;
 import com.qtsurfer.api.client.binary.ExchangeBinaryDownloads;
 import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.CreateDatasetRequest;
+import com.qtsurfer.api.client.model.Account;
+import com.qtsurfer.api.client.model.AccountUsage;
 import com.qtsurfer.api.client.model.Dataset;
 import com.qtsurfer.api.client.model.DatasetCreated;
 import com.qtsurfer.api.client.model.DatasetImportCreated;
@@ -21,6 +25,14 @@ import com.qtsurfer.api.client.model.EquityCurveResult;
 import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.FinalizeDatasetUpload202Response;
 import com.qtsurfer.api.client.model.InstrumentDetail;
+import com.qtsurfer.api.client.model.LiveParamsUpdateResult;
+import com.qtsurfer.api.client.model.LiveRun;
+import com.qtsurfer.api.client.model.LiveRunCompact;
+import com.qtsurfer.api.client.model.LiveSignalPage;
+import com.qtsurfer.api.client.model.PublicLiveListResponse;
+import com.qtsurfer.api.client.model.StartLiveRequest;
+import com.qtsurfer.api.client.model.UpdateLiveParamsRequest;
+import com.qtsurfer.api.client.model.UpdateLiveRequest;
 import com.qtsurfer.api.client.model.StrategySummary;
 import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.client.model.StrategyState;
@@ -36,10 +48,13 @@ import com.qtsurfer.api.sdk.workflows.SweepWorkflow;
 
 import java.io.InputStream;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.net.http.HttpClient;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -77,10 +92,13 @@ public final class QTSurfer {
     private final ExchangeApi exchangeApi;
     private final StrategyApi strategyApi;
     private final DatasetApi datasetApi;
+    private final AccountApi accountApi;
+    private final LiveExecutionApi liveExecutionApi;
 
     private QTSurfer(QTSurferOptions options, BacktestWorkflow backtestWorkflow,
                      SweepWorkflow sweepWorkflow, ExchangeBinaryDownloads downloads,
-                     ExchangeApi exchangeApi, StrategyApi strategyApi, DatasetApi datasetApi) {
+                     ExchangeApi exchangeApi, StrategyApi strategyApi, DatasetApi datasetApi,
+                     AccountApi accountApi, LiveExecutionApi liveExecutionApi) {
         this.options = options;
         this.backtestWorkflow = backtestWorkflow;
         this.sweepWorkflow = sweepWorkflow;
@@ -88,6 +106,8 @@ public final class QTSurfer {
         this.exchangeApi = exchangeApi;
         this.strategyApi = strategyApi;
         this.datasetApi = datasetApi;
+        this.accountApi = accountApi;
+        this.liveExecutionApi = liveExecutionApi;
     }
 
     /** Configuration this client was built with. */
@@ -842,6 +862,129 @@ public final class QTSurfer {
     /** Start building a {@link QTSurfer} client via the fluent {@link Builder}. */
     public static Builder builder() { return new Builder(); }
 
+    /** Read the authenticated account's tier and limits. */
+    public Account getAccount() {
+        try {
+            return accountApi.getAccount();
+        } catch (ApiException e) {
+            throw new QTSError("getAccount call failed: " + describe(e), e);
+        }
+    }
+
+    /** Read current account storage consumption, including retained signals. */
+    public AccountUsage getAccountUsage() {
+        try {
+            return accountApi.getAccountUsage();
+        } catch (ApiException e) {
+            throw new QTSError("getAccountUsage call failed: " + describe(e), e);
+        }
+    }
+
+    /** Start the compiled strategy's live run. */
+    public LiveRun startLive(String strategyId, StartLiveRequest request) {
+        Objects.requireNonNull(strategyId, "strategyId");
+        Objects.requireNonNull(request, "request");
+        try {
+            return liveExecutionApi.startLive(strategyId, request);
+        } catch (ApiException e) {
+            throw new QTSError("startLive call failed: " + describe(e), e);
+        }
+    }
+
+    /** Read a strategy's live run. */
+    public LiveRun getLive(String strategyId) {
+        Objects.requireNonNull(strategyId, "strategyId");
+        try {
+            return liveExecutionApi.getLive(strategyId);
+        } catch (ApiException e) {
+            throw new QTSError("getLive call failed: " + describe(e), e);
+        }
+    }
+
+    /** Stop a strategy's active live run. */
+    public LiveRun stopLive(String strategyId) {
+        Objects.requireNonNull(strategyId, "strategyId");
+        try {
+            return liveExecutionApi.stopLive(strategyId);
+        } catch (ApiException e) {
+            throw new QTSError("stopLive call failed: " + describe(e), e);
+        }
+    }
+
+    /** List publicly visible live runs. */
+    public PublicLiveListResponse listPublicLive(String cursor, Integer limit) {
+        try {
+            return liveExecutionApi.listPublicLive(cursor, limit);
+        } catch (ApiException e) {
+            throw new QTSError("listPublicLive call failed: " + describe(e), e);
+        }
+    }
+
+    /** Update mutable metadata for a live run. */
+    public LiveRunCompact updateLive(String runId, UpdateLiveRequest request) {
+        Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(request, "request");
+        try {
+            return liveExecutionApi.updateLive(runId, request);
+        } catch (ApiException e) {
+            throw new QTSError("updateLive call failed: " + describe(e), e);
+        }
+    }
+
+    /** Update live parameters without opening a WebSocket connection. */
+    public LiveParamsUpdateResult updateLiveParams(String runId, UpdateLiveParamsRequest request) {
+        Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(request, "request");
+        try {
+            return liveExecutionApi.updateLiveParams(runId, request);
+        } catch (ApiException e) {
+            throw new QTSError("updateLiveParams call failed: " + describe(e), e);
+        }
+    }
+
+    /** Update live strategy parameters through the SDK request builder. */
+    public LiveParamsUpdateResult updateLiveParams(String runId, UpdateLiveParamsRequestBuilder request) {
+        Objects.requireNonNull(request, "request");
+        return updateLiveParams(runId, request.build());
+    }
+
+    /** Read one oldest-first page of retained live signals. */
+    public LiveSignalPage getLiveSignals(
+            String runId, Long sinceMs, String instrument, String cursor, Integer limit) {
+        Objects.requireNonNull(runId, "runId");
+        try {
+            return liveExecutionApi.getLiveRunSignals(runId, sinceMs, instrument, cursor, limit);
+        } catch (ApiException e) {
+            throw new QTSError("getLiveSignals call failed: " + describe(e), e);
+        }
+    }
+
+    /** Continue a retained-signal page without requiring callers to parse its HAL link. */
+    public Optional<LiveSignalPage> getNextLiveSignals(String runId, LiveSignalPage page) {
+        Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(page, "page");
+        String href = page.getLinks() == null || page.getLinks().getNext() == null
+                ? null : page.getLinks().getNext().getHref();
+        if (href == null) {
+            return Optional.empty();
+        }
+        return Optional.of(getLiveSignals(runId, null, null, queryParameter(href, "cursor"), null));
+    }
+
+    private static String queryParameter(String href, String name) {
+        String query = URI.create(href).getRawQuery();
+        if (query == null) {
+            throw new IllegalArgumentException("Live signal continuation link has no cursor");
+        }
+        String prefix = name + "=";
+        for (String part : query.split("&")) {
+            if (part.startsWith(prefix)) {
+                return URLDecoder.decode(part.substring(prefix.length()), StandardCharsets.UTF_8);
+            }
+        }
+        throw new IllegalArgumentException("Live signal continuation link has no cursor");
+    }
+
     public static final class Builder {
         private final QTSurferOptions.Builder delegate = QTSurferOptions.builder();
 
@@ -865,7 +1008,8 @@ public final class QTSurfer {
             BacktestWorkflow workflow = new BacktestWorkflow(compileClient, backtestingApi, exec);
             SweepWorkflow sweeps = new SweepWorkflow(compileClient, backtestingApi, exec);
             return new QTSurfer(opts, workflow, sweeps, new ExchangeBinaryDownloads(apiClient),
-                    new ExchangeApi(apiClient), new StrategyApi(apiClient), new DatasetApi(apiClient));
+                    new ExchangeApi(apiClient), new StrategyApi(apiClient), new DatasetApi(apiClient),
+                    new AccountApi(apiClient), new LiveExecutionApi(apiClient));
         }
     }
 }
