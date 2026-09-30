@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.27.0] — 2026-09-30
+
+### Added ✨
+
+- Send owner-only commands to a running strategy through `sendLiveCommand`, without restarting the run. `LiveCommandRequestBuilder` keeps arbitrary JSON properties fluent; the accepted response identifies the command and effective market position.
+- Read deleted strategies and datasets, account sweep-grid limits, and live-run stop/failure reasons from the refreshed API contract.
+
+### Changed 🔄
+
+- Build against `com.qtsurfer:api-client-java` `0.20.0` (OpenAPI `0.128.14`).
+
 ## [0.26.0] — 2026-09-30
 
 ### Added ✨

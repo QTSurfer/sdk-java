@@ -6,6 +6,7 @@ import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.sdk.BacktestOutcome;
 import com.qtsurfer.api.sdk.LivePaperEquityQuery;
 import com.qtsurfer.api.sdk.LiveSignalsQuery;
+import com.qtsurfer.api.sdk.LiveCommandRequestBuilder;
 import com.qtsurfer.api.sdk.QTSurfer;
 import com.qtsurfer.api.sdk.ValidationOutcome;
 import com.qtsurfer.api.sdk.errors.QTSAuthError;
@@ -142,6 +143,11 @@ class AuthenticatedClientTest {
                 status = 200;
                 body = "{\"datasets\":[]}".getBytes(StandardCharsets.UTF_8);
                 ctype = "application/json";
+            } else if (path.endsWith("/commands")) {
+                status = 202;
+                body = "{\"runId\":\"run-1\",\"commandId\":\"cmd-1\",\"effectiveAtMs\":1758330015000}"
+                        .getBytes(StandardCharsets.UTF_8);
+                ctype = "application/json";
             } else if (path.endsWith("/paper/equity")) {
                 status = 200;
                 body = ("{\"points\":[],\"_links\":{\"next\":{\"href\":"
@@ -231,6 +237,10 @@ class AuthenticatedClientTest {
         tokenResponses.add(jwt("jwt-paper", "pro"));
         AuthenticatedClient session = QTSurfer.authenticate("ak_paper", opts());
 
+        assertEquals("cmd-1", session.sendLiveCommand("run-1", LiveCommandRequestBuilder.builder()
+                .command("rebalance")
+                .property("targetWeight", 0.25)).getCommandId());
+
         assertEquals("run-1", session.getLiveRunPaper("run-1").getRunId());
         var equity = session.getLiveRunPaperEquity("run-1", LivePaperEquityQuery.builder()
                 .currency("USDT")
@@ -252,6 +262,8 @@ class AuthenticatedClientTest {
                 && request.query().contains("type=paper") && request.query().contains("instrument=ETH%2FUSDT")));
         assertTrue(requests.stream().filter(request -> request.path().endsWith("/paper")
                 || request.path().endsWith("/paper/equity") || request.path().endsWith("/signals"))
+                .allMatch(request -> "Bearer jwt-paper".equals(request.authorization())));
+        assertTrue(requests.stream().filter(request -> request.path().endsWith("/commands"))
                 .allMatch(request -> "Bearer jwt-paper".equals(request.authorization())));
     }
 

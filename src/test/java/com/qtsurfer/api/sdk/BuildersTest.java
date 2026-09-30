@@ -34,6 +34,19 @@ class BuildersTest {
     }
 
     @Test
+    void liveCommandBuilderKeepsArbitraryPropertiesAndRequiresCommand() {
+        var request = LiveCommandRequestBuilder.builder()
+                .command("rebalance")
+                .property("targetWeight", 0.25)
+                .properties(Map.of("enabled", true))
+                .build();
+
+        assertEquals("rebalance", request.getCommand());
+        assertEquals(Map.of("targetWeight", 0.25, "enabled", true), request.getProperties());
+        assertThrows(NullPointerException.class, () -> LiveCommandRequestBuilder.builder().build());
+    }
+
+    @Test
     void backtestRequestRejectsNullRequiredFields() {
         assertThrows(NullPointerException.class,
                 () -> new BacktestRequest(null, "binance", "BTC/USDT", "2026-01-01", "2026-01-02", null, null, null));

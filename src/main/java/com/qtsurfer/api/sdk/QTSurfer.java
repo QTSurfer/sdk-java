@@ -26,6 +26,7 @@ import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.FinalizeDatasetUpload202Response;
 import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.client.model.LiveParamsUpdateResult;
+import com.qtsurfer.api.client.model.LiveCommandResult;
 import com.qtsurfer.api.client.model.LiveRun;
 import com.qtsurfer.api.client.model.LiveRunCompact;
 import com.qtsurfer.api.client.model.LiveSignalPage;
@@ -34,6 +35,7 @@ import com.qtsurfer.api.client.model.LivePaper;
 import com.qtsurfer.api.client.model.LivePaperEquityPage;
 import com.qtsurfer.api.client.model.PublicLiveListResponse;
 import com.qtsurfer.api.client.model.StartLiveRequest;
+import com.qtsurfer.api.client.model.SendLiveCommandRequest;
 import com.qtsurfer.api.client.model.UpdateLiveParamsRequest;
 import com.qtsurfer.api.client.model.UpdateLiveRequest;
 import com.qtsurfer.api.client.model.StrategySummary;
@@ -1024,6 +1026,23 @@ public final class QTSurfer {
     public LiveParamsUpdateResult updateLiveParams(String runId, UpdateLiveParamsRequestBuilder request) {
         Objects.requireNonNull(request, "request");
         return updateLiveParams(runId, request.build());
+    }
+
+    /** Send a transient command to a running strategy without restarting the run. */
+    public LiveCommandResult sendLiveCommand(String runId, SendLiveCommandRequest request) {
+        Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(request, "request");
+        try {
+            return liveExecutionApi.sendLiveCommand(runId, request);
+        } catch (ApiException e) {
+            throw new QTSError("sendLiveCommand call failed: " + describe(e), e);
+        }
+    }
+
+    /** Send a transient command using the SDK's fluent request builder. */
+    public LiveCommandResult sendLiveCommand(String runId, LiveCommandRequestBuilder request) {
+        Objects.requireNonNull(request, "request");
+        return sendLiveCommand(runId, request.build());
     }
 
     /** Read one oldest-first page of retained live signals. */

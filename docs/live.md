@@ -104,6 +104,33 @@ System.out.println("Active parameter version: " + changed.getParamsVersion());
 
 Use the generated-request overload only as an advanced escape hatch for a generated-client extension.
 
+### Send a transient command
+
+`sendLiveCommand(runId, request)` tells a running strategy something without restarting it. The
+strategy must implement the engine's `CommandRequestHandler`, and the caller must own the run. A
+command is an event, not a stored parameter: it is delivered to executions behind the run at the
+same market position, but replicas started later do not receive it. Use parameter updates for state
+that must survive restarts.
+
+Build the request with `LiveCommandRequestBuilder` rather than constructing an untyped `Object`
+properties field directly:
+
+```java
+LiveCommandResult accepted = qts.sendLiveCommand(run.getRunId(),
+        LiveCommandRequestBuilder.builder()
+                .command("rebalance")
+                .property("targetWeight", 0.25)
+                .property("reason", "risk threshold")
+                .build());
+System.out.println(accepted.getCommandId() + " effective at " + accepted.getEffectiveAtMs());
+```
+
+Use `properties(Map<String, ?>)` when values already exist in a map. The `202` response means the
+command was accepted, not that the strategy has completed handling it. A `503` means it was not sent
+and can be retried. There is no idempotency key, so an ambiguous network failure may have delivered
+the command; avoid blind retries. The same methods are available on `AuthenticatedClient` and
+participate in its refresh-on-401 flow.
+
 ## Discover public runs
 
 `listLive(cursor, limit)` lists every run owned by the account, including sandbox and stopped runs.
