@@ -4,6 +4,8 @@ import com.qtsurfer.api.client.model.AuthTokenResponse;
 import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.sdk.BacktestOutcome;
+import com.qtsurfer.api.sdk.LivePaperEquityQuery;
+import com.qtsurfer.api.sdk.LiveSignalsQuery;
 import com.qtsurfer.api.sdk.QTSurfer;
 import com.qtsurfer.api.sdk.ValidationOutcome;
 import com.qtsurfer.api.sdk.errors.QTSAuthError;
@@ -49,7 +51,7 @@ class AuthenticatedClientTest {
     private final List<Integer> compileStatuses = new ArrayList<>();
     private final AtomicInteger compileCalls = new AtomicInteger();
 
-    record RequestRecord(String path, String method, String authorization, String apikey) {}
+    record RequestRecord(String path, String query, String method, String authorization, String apikey) {}
 
     @BeforeEach
     void start() throws IOException {
@@ -57,6 +59,7 @@ class AuthenticatedClientTest {
         server.createContext("/", exchange -> {
             requests.add(new RequestRecord(
                     exchange.getRequestURI().getPath(),
+                    exchange.getRequestURI().getRawQuery(),
                     exchange.getRequestMethod(),
                     exchange.getRequestHeaders().getFirst("Authorization"),
                     exchange.getRequestHeaders().getFirst("X-API-Key")));
@@ -131,6 +134,31 @@ class AuthenticatedClientTest {
                         + "\"_links\":{\"usage\":{\"href\":\"/v1/account/usage\"}}}")
                         .getBytes(StandardCharsets.UTF_8);
                 ctype = "application/json";
+            } else if (path.endsWith("/strategies")) {
+                status = 200;
+                body = "{\"strategies\":[]}".getBytes(StandardCharsets.UTF_8);
+                ctype = "application/json";
+            } else if (path.endsWith("/datasets")) {
+                status = 200;
+                body = "{\"datasets\":[]}".getBytes(StandardCharsets.UTF_8);
+                ctype = "application/json";
+            } else if (path.endsWith("/paper/equity")) {
+                status = 200;
+                body = ("{\"points\":[],\"_links\":{\"next\":{\"href\":"
+                        + "\"/v1/live/run-1/paper/equity?cursor=next-equity&currency=USDT&limit=3\"}}}")
+                        .getBytes(StandardCharsets.UTF_8);
+                ctype = "application/json";
+            } else if (path.endsWith("/paper")) {
+                status = 200;
+                body = "{\"runId\":\"run-1\",\"stage\":\"LIVE\",\"accounts\":[]}"
+                        .getBytes(StandardCharsets.UTF_8);
+                ctype = "application/json";
+            } else if (path.endsWith("/signals")) {
+                status = 200;
+                body = ("{\"signals\":[],\"_links\":{\"next\":{\"href\":"
+                        + "\"/v1/live/run-1/signals?cursor=next-signals&limit=4&instrument=ETH%2FUSDT"
+                        + "&type=paper&sinceMs=123\"}}}").getBytes(StandardCharsets.UTF_8);
+                ctype = "application/json";
             } else if (path.endsWith("/live")) {
                 status = 200;
                 body = "{\"runs\":[],\"_links\":{}}".getBytes(StandardCharsets.UTF_8);
@@ -188,8 +216,43 @@ class AuthenticatedClientTest {
         assertEquals("free", session.getAccount().getTier());
         assertEquals(102L, session.getAccountUsage().getStorageBytesUsed());
         assertEquals(0, session.listLive(null, 20).getRuns().size());
+        assertTrue(session.getStrategies(true).isEmpty());
+        assertTrue(session.getDatasets(true).isEmpty());
+        assertTrue(requests.stream().anyMatch(r -> r.path().equals("/v1/strategies")
+                && r.query().contains("includeDeleted=true")));
+        assertTrue(requests.stream().anyMatch(r -> r.path().equals("/v1/datasets")
+                && r.query().contains("includeDeleted=true")));
         assertTrue(requests.stream().filter(r -> r.path().startsWith("/v1/account")
                 || r.path().equals("/v1/live")).allMatch(r -> "Bearer jwt-live".equals(r.authorization())));
+    }
+
+    @Test
+    void authenticatedClientReadsPaperAndPreservesLivePageFilters() {
+        tokenResponses.add(jwt("jwt-paper", "pro"));
+        AuthenticatedClient session = QTSurfer.authenticate("ak_paper", opts());
+
+        assertEquals("run-1", session.getLiveRunPaper("run-1").getRunId());
+        var equity = session.getLiveRunPaperEquity("run-1", LivePaperEquityQuery.builder()
+                .currency("USDT")
+                .limit(3)
+                .build());
+        assertTrue(session.getNextLiveRunPaperEquity("run-1", equity).isPresent());
+
+        var signals = session.getLiveSignals("run-1", LiveSignalsQuery.builder()
+                .sinceMs(123L)
+                .instrument("ETH/USDT")
+                .type("paper")
+                .limit(4)
+                .build());
+        assertTrue(session.getNextLiveSignals("run-1", signals).isPresent());
+
+        assertTrue(requests.stream().anyMatch(request -> request.path().endsWith("/paper/equity")
+                && request.query().contains("currency=USDT") && request.query().contains("limit=3")));
+        assertTrue(requests.stream().anyMatch(request -> request.path().endsWith("/signals")
+                && request.query().contains("type=paper") && request.query().contains("instrument=ETH%2FUSDT")));
+        assertTrue(requests.stream().filter(request -> request.path().endsWith("/paper")
+                || request.path().endsWith("/paper/equity") || request.path().endsWith("/signals"))
+                .allMatch(request -> "Bearer jwt-paper".equals(request.authorization())));
     }
 
     @Test

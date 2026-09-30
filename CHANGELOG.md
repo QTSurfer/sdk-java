@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-09-30
+
+### Added ✨
+
+- Simulate live fills with `StartLiveRequest.paper`, inspect account snapshots with `getLiveRunPaper()`, and page equity with filter-preserving `getNextLiveRunPaperEquity()`.
+- Filter retained history by signal type using `LiveSignalsQuery`, including mixed paper events (`type: "paper"`), and continue pages without losing filters.
+- Include soft-deleted strategies and datasets in `getStrategies(true)` and `getDatasets(true)` when synchronizing local catalogues.
+
+### Changed 🔄
+
+- Default authentication and examples now target `https://api.qtsurfer.net/v1`; build against `api-client-java` `0.19.0` (OpenAPI `0.128.14`).
+
 ## [0.25.1] — 2026-09-23
 
 ### Added

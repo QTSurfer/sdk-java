@@ -51,6 +51,15 @@ String source = qts.getStrategyCode(strategyId);
 qts.deleteStrategy(strategyId);
 ```
 
+`getStrategies()` lists active registrations. Pass `true` to include soft-deleted strategies and
+their `deletedAt` timestamps when reconciling a local catalogue; the default is `false`.
+
+```java
+var all = qts.getStrategies(true);
+all.stream().filter(strategy -> strategy.getDeletedAt() != null)
+        .forEach(strategy -> System.out.println(strategy.getStrategyId() + " deleted " + strategy.getDeletedAt()));
+```
+
 Listing is intentionally compact and omits each strategy's validation state. `getStrategyCode` and
 `deleteStrategy` return `404` for a strategy not registered by the caller. Deleting a registration
 does not alter historical backtests; recompiling the same source creates a new strategy id.

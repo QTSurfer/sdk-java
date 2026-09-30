@@ -20,6 +20,65 @@ qts.stopLive(strategyId);
 
 `getLive(strategyId)` and `stopLive(strategyId)` address the one live run of a strategy. `stopLive` requests a stop; inspect the returned or subsequent `LiveRun.state` before assuming execution has ended.
 
+### Simulate fills with paper trading
+
+Paper trading is opt-in. Add `paper` to the start request to simulate fills, per-quote-currency
+balances, open positions, and backtest-style KPIs. It never submits orders to an exchange. Without
+the `paper` block, the paper read methods return `404`.
+
+```java
+StartLiveRequest request = new StartLiveRequest()
+        .name("ETH paper run")
+        .relay(true)
+        .paper(new LivePaperConfig()
+                .initialFunding(1_000.0)
+                .feeRate(0.001)
+                .feeLeg(LivePaperConfig.FeeLegEnum.RECEIVED)
+                .percentAmountToLock(20.0)
+                .output(LivePaperConfig.OutputEnum.SEPARATE));
+LiveRun paperRun = qts.startLive(strategyId, request);
+LivePaper snapshot = qts.getLiveRunPaper(paperRun.getRunId());
+snapshot.getAccounts().forEach(account -> System.out.printf(
+        "%s equity=%s openPositions=%d%n",
+        account.getCurrency(), account.getEquity(), account.getOpenPositions().size()));
+```
+
+`initialFunding` defaults to `100` per quote-currency account; `feeRate` defaults to `0.001` and
+sets both buy/sell rates unless overridden; `feeLeg` defaults to `RECEIVED` (`QUOTE` and `BASE` are
+also accepted); `percentAmountToLock` defaults to the strategy setting or 10% of remaining free
+balance; `output` defaults to `SEPARATE`. Each quote currency gets a separate account. When `output`
+is `MIX`, paper events are also written into retained signals. See the [API paper-trading guide](https://qtsurfer.github.io/docs/live_paper.html)
+for economics, account semantics, and signal event shapes.
+
+The authenticated session exposes the same methods and retries once on `401`:
+
+```java
+LivePaper snapshot = authenticated.getLiveRunPaper(paperRun.getRunId());
+```
+
+### Read paper-equity history
+
+`getLiveRunPaperEquity(runId, query)` reads the lifetime equity curve oldest first. Omit `currency`
+to interleave all quote accounts; use `sinceMs` to start at a market-time instant. The API defaults
+`limit` to 100 and caps it at 1000. A cursor takes precedence over `sinceMs`; use the continuation
+helper to preserve currency, size, and other link filters.
+
+```java
+LivePaperEquityQuery equityQuery = LivePaperEquityQuery.builder()
+        .currency("USDT")
+        .sinceMs(startedAtMs)
+        .limit(100)
+        .build();
+LivePaperEquityPage equity = qts.getLiveRunPaperEquity(paperRun.getRunId(), equityQuery);
+equity.getPoints().forEach(point -> System.out.println(point.getEventTsMs() + " " + point.getEquity()));
+qts.getNextLiveRunPaperEquity(paperRun.getRunId(), equity)
+        .ifPresent(next -> next.getPoints().forEach(System.out::println));
+```
+
+The same methods are available on `AuthenticatedClient`, where each request participates in
+refresh-on-401. Paper routes follow the run's access rule: its owner, or any caller when visibility
+is public.
+
 ## Visibility and parameters
 
 `updateLive(runId, request)` changes mutable run metadata. Supply only the field to change: `visibility`, `name`, or `description`.
@@ -62,15 +121,23 @@ ownedRuns.getRuns().forEach(item -> System.out.println(item.getRunId() + " " + i
 
 ## Retained signal history
 
-`getLiveSignals(runId, sinceMs, instrument, cursor, limit)` returns one oldest-first `LiveSignalPage`.
+`getLiveSignals(runId, query)` returns one oldest-first `LiveSignalPage`. Build filters with
+`LiveSignalsQuery`; all fields are optional and omitted values use API defaults.
 
 - `sinceMs` is an epoch-millisecond lower bound; omit it to start at the oldest retained signal.
 - `instrument` accepts one instrument, a wildcard, or a comma-separated list.
 - `cursor` continues the response next link and takes precedence over `sinceMs`.
 - `limit` bounds the number of returned signals.
+- `type` filters signal kind, including `paper` when the run was started with `paper.output = MIX`.
 
 ```java
-LiveSignalPage page = qts.getLiveSignals(run.getRunId(), null, "ETH/USDT", null, 100);
+LiveSignalsQuery query = LiveSignalsQuery.builder()
+        .sinceMs(startedAtMs)
+        .instrument("ETH/USDT")
+        .type("paper")
+        .limit(100)
+        .build();
+LiveSignalPage page = qts.getLiveSignals(run.getRunId(), query);
 page.getSignals().forEach(signal -> System.out.println(signal.getSignalId()));
 Long oldestAvailable = page.getAvailableSinceMs();
 
@@ -78,4 +145,8 @@ qts.getNextLiveSignals(run.getRunId(), page)
         .ifPresent(nextPage -> nextPage.getSignals().forEach(System.out::println));
 ```
 
-Deduplicate by `signalId` when combining this history with real-time delivery. A cursor can expire as retention advances; restart without it. The replacement page reports `availableSinceMs`, the earliest point that remains readable.
+Deduplicate by `signalId` when combining this history with real-time delivery. `getNextLiveSignals`
+follows the HAL link and retains its `sinceMs`, instrument, type, and limit filters. A cursor can
+expire as retention advances; restart without it. The replacement page reports `availableSinceMs`,
+the earliest point that remains readable. This SDK manages live runs over REST and does not provide
+a managed WebSocket connection; only the TypeScript SDK currently supplies that abstraction.

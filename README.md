@@ -83,7 +83,7 @@ The README is an entry point; the source documentation follows the API's functio
 | Writing Java strategy source | [API guide](https://qtsurfer.github.io/docs/strategy_coding.html) |
 | Dataset uploads and external imports | [docs/datasets.md](docs/datasets.md) |
 | Account limits and storage usage | [docs/account.md](docs/account.md) |
-| Live execution and retained signals | [docs/live.md](docs/live.md) |
+| Live execution, paper simulation, and retained signals | [docs/live.md](docs/live.md) |
 | Complete operation mapping | [docs/api-coverage.md](docs/api-coverage.md) |
 
 ## Development

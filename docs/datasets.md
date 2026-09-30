@@ -6,6 +6,17 @@ Use a dataset when the backtest or sweep should run against your own ticker CSV 
 managed exchange. The SDK performs the authenticated API calls and streams the file directly to a
 presigned storage target; the direct transfer intentionally carries no API credentials.
 
+## List datasets
+
+`getDatasets()` returns active datasets newest first. Pass `true` to include soft-deleted entries
+and their `deletedAt` timestamps when synchronizing a local catalogue; the default is `false`.
+
+```java
+var all = qts.getDatasets(true);
+all.stream().filter(dataset -> dataset.getDeletedAt() != null)
+        .forEach(dataset -> System.out.println(dataset.getDatasetId() + " deleted " + dataset.getDeletedAt()));
+```
+
 ## Import external history
 
 For supported external sources, ask the platform to fetch and ingest the history instead of uploading

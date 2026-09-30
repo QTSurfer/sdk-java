@@ -29,6 +29,8 @@ import com.qtsurfer.api.client.model.FinalizeDatasetUpload202Response;
 import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.client.model.LiveParamsUpdateResult;
 import com.qtsurfer.api.client.model.LiveListResponse;
+import com.qtsurfer.api.client.model.LivePaper;
+import com.qtsurfer.api.client.model.LivePaperEquityPage;
 import com.qtsurfer.api.client.model.LiveRun;
 import com.qtsurfer.api.client.model.LiveRunCompact;
 import com.qtsurfer.api.client.model.LiveSignalPage;
@@ -44,6 +46,8 @@ import com.qtsurfer.api.sdk.BoundedEquityCurve;
 import com.qtsurfer.api.sdk.BacktestOutcome;
 import com.qtsurfer.api.sdk.BacktestRequest;
 import com.qtsurfer.api.sdk.DownloadFormat;
+import com.qtsurfer.api.sdk.LivePaperEquityQuery;
+import com.qtsurfer.api.sdk.LiveSignalsQuery;
 import com.qtsurfer.api.sdk.Strategy;
 import com.qtsurfer.api.sdk.Sweep;
 import com.qtsurfer.api.sdk.SweepOptions;
@@ -55,24 +59,21 @@ import com.qtsurfer.api.sdk.errors.QTSDownloadError;
 import com.qtsurfer.api.sdk.errors.QTSError;
 import com.qtsurfer.api.sdk.internal.ApiCalls;
 import com.qtsurfer.api.sdk.internal.DatasetUploads;
+import com.qtsurfer.api.sdk.internal.LivePageLinks;
 import com.qtsurfer.api.sdk.internal.HttpStrategyCompileClient;
 import com.qtsurfer.api.sdk.internal.ValidationOutcomes;
 import com.qtsurfer.api.sdk.workflows.BacktestWorkflow;
 import com.qtsurfer.api.sdk.workflows.SweepWorkflow;
 
 import java.io.InputStream;
-import java.net.URI;
-import java.net.URLDecoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -430,9 +431,18 @@ public final class AuthenticatedClient {
      * @throws QTSError on HTTP 4xx/5xx or transport failure
      */
     public List<StrategySummary> getStrategies() {
+        return getStrategies(false);
+    }
+
+    /**
+     * List registered strategies, optionally including deleted entries.
+     * @param includeDeleted {@code true} to include deleted strategies and their deletion timestamps
+     * @return the caller's strategies in newest-first order
+     */
+    public List<StrategySummary> getStrategies(boolean includeDeleted) {
         return withRefreshOn401(() -> {
             try {
-                return strategyApi.listStrategies().getStrategies();
+                return strategyApi.listStrategies(includeDeleted).getStrategies();
             } catch (ApiException e) {
                 throw new QTSError("listStrategies call failed: " + describe(e), e);
             }
@@ -442,6 +452,10 @@ public final class AuthenticatedClient {
     /** @deprecated Use {@link #getStrategies()}. */
     @Deprecated(forRemoval = false)
     public List<StrategySummary> listStrategies() { return getStrategies(); }
+
+    /** @deprecated Use {@link #getStrategies(boolean)}. */
+    @Deprecated(forRemoval = false)
+    public List<StrategySummary> listStrategies(boolean includeDeleted) { return getStrategies(includeDeleted); }
 
     /**
      * Release a registered strategy: removes it from both
@@ -719,12 +733,26 @@ public final class AuthenticatedClient {
 
     /** List the caller's non-deleted datasets, newest first. */
     public List<Dataset> getDatasets() {
-        return withRefreshOn401(() -> callDataset(() -> datasetApi.listDatasets().getDatasets(), "listDatasets"));
+        return getDatasets(false);
+    }
+
+    /**
+     * List datasets, optionally including deleted entries and their deletion timestamps.
+     * @param includeDeleted {@code true} to include deleted datasets and their deletion timestamps
+     * @return the caller's datasets in newest-first order
+     */
+    public List<Dataset> getDatasets(boolean includeDeleted) {
+        return withRefreshOn401(() -> callDataset(
+                () -> datasetApi.listDatasets(includeDeleted).getDatasets(), "listDatasets"));
     }
 
     /** @deprecated Use {@link #getDatasets()}. */
     @Deprecated(forRemoval = false)
     public List<Dataset> listDatasets() { return getDatasets(); }
+
+    /** @deprecated Use {@link #getDatasets(boolean)}. */
+    @Deprecated(forRemoval = false)
+    public List<Dataset> listDatasets(boolean includeDeleted) { return getDatasets(includeDeleted); }
 
     /** Read one dataset and its self link. */
     public DatasetWithLinks getDataset(String datasetId) {
@@ -798,6 +826,40 @@ public final class AuthenticatedClient {
                 () -> liveExecutionApi.startLive(strategyId, request), "startLive"));
     }
 
+    /** Read simulated accounts, open positions, and KPIs for a paper-enabled run. */
+    public LivePaper getLiveRunPaper(String runId) {
+        Objects.requireNonNull(runId, "runId");
+        return withRefreshOn401(() -> callDataset(
+                () -> liveExecutionApi.getLiveRunPaper(runId), "getLiveRunPaper"));
+    }
+
+    /** Read one page of a run's paper-equity history. */
+    public LivePaperEquityPage getLiveRunPaperEquity(String runId, LivePaperEquityQuery query) {
+        Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(query, "query");
+        return withRefreshOn401(() -> callDataset(() -> liveExecutionApi.getLiveRunPaperEquity(
+                runId, query.currency(), query.sinceMs(), query.cursor(), query.limit()), "getLiveRunPaperEquity"));
+    }
+
+    /** Continue a paper-equity page while preserving its account and range filters. */
+    public Optional<LivePaperEquityPage> getNextLiveRunPaperEquity(
+            String runId, LivePaperEquityPage page) {
+        Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(page, "page");
+        String href = page.getLinks() == null || page.getLinks().getNext() == null
+                ? null : page.getLinks().getNext().getHref();
+        if (href == null) return Optional.empty();
+        var parameters = LivePageLinks.queryParameters(href);
+        String cursor = parameters.get("cursor");
+        if (cursor == null) throw new IllegalArgumentException("Paper equity continuation link has no cursor");
+        return Optional.of(getLiveRunPaperEquity(runId, LivePaperEquityQuery.builder()
+                .currency(parameters.get("currency"))
+                .sinceMs(parseLong(parameters.get("sinceMs")))
+                .cursor(cursor)
+                .limit(parseInteger(parameters.get("limit")))
+                .build()));
+    }
+
     /** Read a strategy's active or most recent live run. */
     public LiveRun getLive(String strategyId) {
         Objects.requireNonNull(strategyId, "strategyId");
@@ -850,9 +912,16 @@ public final class AuthenticatedClient {
     /** Read one oldest-first page of retained signals. */
     public LiveSignalPage getLiveSignals(
             String runId, Long sinceMs, String instrument, String cursor, Integer limit) {
+        return getLiveSignals(runId, new LiveSignalsQuery(sinceMs, instrument, null, cursor, limit));
+    }
+
+    /** Read one oldest-first page of retained signals using typed query options. */
+    public LiveSignalPage getLiveSignals(String runId, LiveSignalsQuery query) {
         Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(query, "query");
         return withRefreshOn401(() -> callDataset(() -> liveExecutionApi.getLiveRunSignals(
-                runId, sinceMs, instrument, cursor, limit), "getLiveSignals"));
+                runId, query.sinceMs(), query.instrument(), query.type(), query.cursor(), query.limit()),
+                "getLiveSignals"));
     }
 
     /** Read the next page using its server-provided continuation link. */
@@ -861,17 +930,16 @@ public final class AuthenticatedClient {
         String href = page.getLinks() == null || page.getLinks().getNext() == null
                 ? null : page.getLinks().getNext().getHref();
         if (href == null) return Optional.empty();
-        String query = URI.create(href).getRawQuery();
-        if (query == null) {
-            throw new IllegalArgumentException("Live signal continuation link has no cursor");
-        }
-        String cursor = Arrays.stream(query.split("&"))
-                .filter(part -> part.startsWith("cursor="))
-                .map(part -> URLDecoder.decode(part.substring("cursor=".length()), StandardCharsets.UTF_8))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Live signal continuation link has no cursor"));
-        return Optional.of(getLiveSignals(runId, null, null, cursor, null));
+        var parameters = LivePageLinks.queryParameters(href);
+        String cursor = parameters.get("cursor");
+        if (cursor == null) throw new IllegalArgumentException("Live signal continuation link has no cursor");
+        return Optional.of(getLiveSignals(runId, new LiveSignalsQuery(
+                parseLong(parameters.get("sinceMs")), parameters.get("instrument"), parameters.get("type"),
+                cursor, parseInteger(parameters.get("limit")))));
     }
+
+    private static Long parseLong(String value) { return value == null ? null : Long.valueOf(value); }
+    private static Integer parseInteger(String value) { return value == null ? null : Integer.valueOf(value); }
 
     /**
      * Stream a local file to the initial presigned target without attaching API credentials.

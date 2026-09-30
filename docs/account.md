@@ -6,7 +6,7 @@ Create an authenticated client before using either account method:
 import com.qtsurfer.api.sdk.QTSurfer;
 
 QTSurfer qts = QTSurfer.builder()
-        .baseUrl("https://api.qtsurfer.com/v1")
+        .baseUrl("https://api.qtsurfer.net/v1")
         .token(System.getenv("QTSURFER_TOKEN"))
         .build();
 ```

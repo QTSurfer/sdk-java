@@ -10,7 +10,7 @@ import java.util.concurrent.ExecutorService;
  * {@code QTSurferOptions} but replaces the static {@code token} with a
  * pluggable {@link TokenStore}.
  *
- * @param baseUrl    API base URL. Defaults to {@code https://api.qtsurfer.com/v1}.
+ * @param baseUrl    API base URL. Defaults to {@code https://api.qtsurfer.net/v1}.
  * @param store      pluggable token store; defaults to {@link InMemoryTokenStore}.
  * @param httpClient optional custom {@link HttpClient}.
  * @param executor   executor that runs the async workflow.
@@ -21,7 +21,7 @@ public record AuthOptions(
         HttpClient httpClient,
         ExecutorService executor
 ) {
-    public static final URI DEFAULT_BASE_URL = URI.create("https://api.qtsurfer.com/v1");
+    public static final URI DEFAULT_BASE_URL = URI.create("https://api.qtsurfer.net/v1");
 
     public AuthOptions {
         Objects.requireNonNull(baseUrl, "baseUrl");

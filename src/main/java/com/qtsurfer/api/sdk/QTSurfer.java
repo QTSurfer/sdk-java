@@ -30,6 +30,8 @@ import com.qtsurfer.api.client.model.LiveRun;
 import com.qtsurfer.api.client.model.LiveRunCompact;
 import com.qtsurfer.api.client.model.LiveSignalPage;
 import com.qtsurfer.api.client.model.LiveListResponse;
+import com.qtsurfer.api.client.model.LivePaper;
+import com.qtsurfer.api.client.model.LivePaperEquityPage;
 import com.qtsurfer.api.client.model.PublicLiveListResponse;
 import com.qtsurfer.api.client.model.StartLiveRequest;
 import com.qtsurfer.api.client.model.UpdateLiveParamsRequest;
@@ -43,16 +45,15 @@ import com.qtsurfer.api.sdk.errors.QTSDownloadError;
 import com.qtsurfer.api.sdk.errors.QTSError;
 import com.qtsurfer.api.sdk.internal.DatasetUploads;
 import com.qtsurfer.api.sdk.internal.HttpStrategyCompileClient;
+import com.qtsurfer.api.sdk.internal.LivePageLinks;
 import com.qtsurfer.api.sdk.internal.ValidationOutcomes;
 import com.qtsurfer.api.sdk.workflows.BacktestWorkflow;
 import com.qtsurfer.api.sdk.workflows.SweepWorkflow;
 
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URLDecoder;
 import java.net.http.HttpClient;
 import java.nio.file.Path;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -66,7 +67,7 @@ import java.util.concurrent.ForkJoinPool;
  * <h2>Quick start</h2>
  * <pre>{@code
  * QTSurfer qts = QTSurfer.builder()
- *     .baseUrl("https://api.qtsurfer.com/v1")
+ *     .baseUrl("https://api.qtsurfer.net/v1")
  *     .token(System.getenv("JWT_API_TOKEN"))
  *     .build();
  *
@@ -280,8 +281,17 @@ public final class QTSurfer {
      * @throws QTSError on HTTP 4xx/5xx or transport failure
      */
     public List<StrategySummary> getStrategies() {
+        return getStrategies(false);
+    }
+
+    /**
+     * List registered strategies, optionally including deleted entries.
+     * @param includeDeleted {@code true} to include deleted strategies and their deletion timestamps
+     * @return the caller's strategies in newest-first order
+     */
+    public List<StrategySummary> getStrategies(boolean includeDeleted) {
         try {
-            return strategyApi.listStrategies().getStrategies();
+            return strategyApi.listStrategies(includeDeleted).getStrategies();
         } catch (ApiException e) {
             throw new QTSError("listStrategies call failed: " + describe(e), e);
         }
@@ -290,6 +300,10 @@ public final class QTSurfer {
     /** @deprecated Use {@link #getStrategies()}. */
     @Deprecated(forRemoval = false)
     public List<StrategySummary> listStrategies() { return getStrategies(); }
+
+    /** @deprecated Use {@link #getStrategies(boolean)}. */
+    @Deprecated(forRemoval = false)
+    public List<StrategySummary> listStrategies(boolean includeDeleted) { return getStrategies(includeDeleted); }
 
     /**
      * Release a registered strategy: removes it from both
@@ -563,8 +577,17 @@ public final class QTSurfer {
 
     /** List the caller's non-deleted datasets, newest first. */
     public List<Dataset> getDatasets() {
+        return getDatasets(false);
+    }
+
+    /**
+     * List datasets, optionally including deleted entries and their deletion timestamps.
+     * @param includeDeleted {@code true} to include deleted datasets and their deletion timestamps
+     * @return the caller's datasets in newest-first order
+     */
+    public List<Dataset> getDatasets(boolean includeDeleted) {
         try {
-            return datasetApi.listDatasets().getDatasets();
+            return datasetApi.listDatasets(includeDeleted).getDatasets();
         } catch (ApiException e) {
             throw new QTSError("listDatasets call failed: " + describe(e), e);
         }
@@ -573,6 +596,10 @@ public final class QTSurfer {
     /** @deprecated Use {@link #getDatasets()}. */
     @Deprecated(forRemoval = false)
     public List<Dataset> listDatasets() { return getDatasets(); }
+
+    /** @deprecated Use {@link #getDatasets(boolean)}. */
+    @Deprecated(forRemoval = false)
+    public List<Dataset> listDatasets(boolean includeDeleted) { return getDatasets(includeDeleted); }
 
     /** Read one dataset and its self link. */
     public DatasetWithLinks getDataset(String datasetId) {
@@ -892,6 +919,47 @@ public final class QTSurfer {
         }
     }
 
+    /** Read simulated accounts, open positions, and KPIs for a paper-enabled run. */
+    public LivePaper getLiveRunPaper(String runId) {
+        Objects.requireNonNull(runId, "runId");
+        try {
+            return liveExecutionApi.getLiveRunPaper(runId);
+        } catch (ApiException e) {
+            throw new QTSError("getLiveRunPaper call failed: " + describe(e), e);
+        }
+    }
+
+    /** Read one page of a run's paper-equity history. */
+    public LivePaperEquityPage getLiveRunPaperEquity(String runId, LivePaperEquityQuery query) {
+        Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(query, "query");
+        try {
+            return liveExecutionApi.getLiveRunPaperEquity(
+                    runId, query.currency(), query.sinceMs(), query.cursor(), query.limit());
+        } catch (ApiException e) {
+            throw new QTSError("getLiveRunPaperEquity call failed: " + describe(e), e);
+        }
+    }
+
+    /** Continue a paper-equity page while preserving its account and range filters. */
+    public Optional<LivePaperEquityPage> getNextLiveRunPaperEquity(
+            String runId, LivePaperEquityPage page) {
+        Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(page, "page");
+        String href = page.getLinks() == null || page.getLinks().getNext() == null
+                ? null : page.getLinks().getNext().getHref();
+        if (href == null) return Optional.empty();
+        var parameters = LivePageLinks.queryParameters(href);
+        String cursor = parameters.get("cursor");
+        if (cursor == null) throw new IllegalArgumentException("Paper equity continuation link has no cursor");
+        return Optional.of(getLiveRunPaperEquity(runId, LivePaperEquityQuery.builder()
+                .currency(parameters.get("currency"))
+                .sinceMs(parseLong(parameters.get("sinceMs")))
+                .cursor(cursor)
+                .limit(parseInteger(parameters.get("limit")))
+                .build()));
+    }
+
     /** Read a strategy's live run. */
     public LiveRun getLive(String strategyId) {
         Objects.requireNonNull(strategyId, "strategyId");
@@ -961,9 +1029,16 @@ public final class QTSurfer {
     /** Read one oldest-first page of retained live signals. */
     public LiveSignalPage getLiveSignals(
             String runId, Long sinceMs, String instrument, String cursor, Integer limit) {
+        return getLiveSignals(runId, new LiveSignalsQuery(sinceMs, instrument, null, cursor, limit));
+    }
+
+    /** Read one oldest-first page of retained signals using typed query options. */
+    public LiveSignalPage getLiveSignals(String runId, LiveSignalsQuery query) {
         Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(query, "query");
         try {
-            return liveExecutionApi.getLiveRunSignals(runId, sinceMs, instrument, cursor, limit);
+            return liveExecutionApi.getLiveRunSignals(runId, query.sinceMs(), query.instrument(),
+                    query.type(), query.cursor(), query.limit());
         } catch (ApiException e) {
             throw new QTSError("getLiveSignals call failed: " + describe(e), e);
         }
@@ -978,22 +1053,16 @@ public final class QTSurfer {
         if (href == null) {
             return Optional.empty();
         }
-        return Optional.of(getLiveSignals(runId, null, null, queryParameter(href, "cursor"), null));
+        var parameters = LivePageLinks.queryParameters(href);
+        String cursor = parameters.get("cursor");
+        if (cursor == null) throw new IllegalArgumentException("Live signal continuation link has no cursor");
+        return Optional.of(getLiveSignals(runId, new LiveSignalsQuery(
+                parseLong(parameters.get("sinceMs")), parameters.get("instrument"), parameters.get("type"),
+                cursor, parseInteger(parameters.get("limit")))));
     }
 
-    private static String queryParameter(String href, String name) {
-        String query = URI.create(href).getRawQuery();
-        if (query == null) {
-            throw new IllegalArgumentException("Live signal continuation link has no cursor");
-        }
-        String prefix = name + "=";
-        for (String part : query.split("&")) {
-            if (part.startsWith(prefix)) {
-                return URLDecoder.decode(part.substring(prefix.length()), StandardCharsets.UTF_8);
-            }
-        }
-        throw new IllegalArgumentException("Live signal continuation link has no cursor");
-    }
+    private static Long parseLong(String value) { return value == null ? null : Long.valueOf(value); }
+    private static Integer parseInteger(String value) { return value == null ? null : Integer.valueOf(value); }
 
     public static final class Builder {
         private final QTSurferOptions.Builder delegate = QTSurferOptions.builder();
