@@ -28,6 +28,7 @@ import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.FinalizeDatasetUpload202Response;
 import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.client.model.LiveParamsUpdateResult;
+import com.qtsurfer.api.client.model.LiveConnectionToken;
 import com.qtsurfer.api.client.model.LiveCommandResult;
 import com.qtsurfer.api.client.model.LiveListResponse;
 import com.qtsurfer.api.client.model.LivePaper;
@@ -49,6 +50,8 @@ import com.qtsurfer.api.sdk.BacktestOutcome;
 import com.qtsurfer.api.sdk.BacktestRequest;
 import com.qtsurfer.api.sdk.DownloadFormat;
 import com.qtsurfer.api.sdk.LivePaperEquityQuery;
+import com.qtsurfer.api.sdk.LiveConnection;
+import com.qtsurfer.api.sdk.LiveConnectionOptions;
 import com.qtsurfer.api.sdk.LiveSignalsQuery;
 import com.qtsurfer.api.sdk.LiveCommandRequestBuilder;
 import com.qtsurfer.api.sdk.Strategy;
@@ -903,6 +906,18 @@ public final class AuthenticatedClient {
         Objects.requireNonNull(request, "request");
         return withRefreshOn401(() -> callDataset(
                 () -> liveExecutionApi.updateLiveParams(runId, request), "updateLiveParams"));
+    }
+
+    /** Connect to one run's real-time signal channel and refresh its token as needed. */
+    public CompletableFuture<LiveConnection> connectLive(String runId, LiveConnectionOptions options) {
+        return LiveConnection.connect(runId, options, () -> {
+            LiveConnectionToken token = withRefreshOn401(() -> callDataset(
+                    liveExecutionApi::mintLiveConnectionToken, "mintLiveConnectionToken"));
+            if (token == null || token.getToken() == null) {
+                throw new QTSError("mintLiveConnectionToken returned an empty token");
+            }
+            return token.getToken();
+        });
     }
 
     /** Update live strategy parameters using the SDK's fluent request builder. */

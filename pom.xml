@@ -6,7 +6,7 @@
 
     <groupId>com.qtsurfer</groupId>
     <artifactId>sdk-java</artifactId>
-    <version>0.27.0</version>
+    <version>0.28.0</version>
     <packaging>jar</packaging>
 
     <name>QTSurfer SDK</name>
@@ -52,6 +52,7 @@
         <failsafe.version>3.3.2</failsafe.version>
         <slf4j.version>2.0.16</slf4j.version>
         <jackson.version>2.18.2</jackson.version>
+        <centrifuge.version>0.7.0</centrifuge.version>
 
         <junit.version>5.11.4</junit.version>
         <mockito.version>5.23.0</mockito.version>
@@ -95,6 +96,11 @@
             <artifactId>jackson-databind</artifactId>
             <version>${jackson.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.github.centrifugal</groupId>
+            <artifactId>centrifuge-java</artifactId>
+            <version>${centrifuge.version}</version>
+        </dependency>
 
         <!-- Tests -->
         <dependency>
@@ -113,6 +119,12 @@
             <groupId>org.mockito</groupId>
             <artifactId>mockito-junit-jupiter</artifactId>
             <version>${mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
+            <version>4.12.0</version>
             <scope>test</scope>
         </dependency>
         <!-- Silence SLF4J warnings in tests (simple binding to stderr) -->

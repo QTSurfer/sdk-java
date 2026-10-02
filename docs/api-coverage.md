@@ -1,8 +1,8 @@
 # API coverage
 
-Measured against API spec **0.128.14**. The SDK wraps 44 of 45 REST operations in task-oriented
-methods. `mintLiveConnectionToken` remains available through the generated client; the SDK does not
-provide a managed WebSocket connection.
+Measured against API spec **0.128.14**. The SDK wraps all 45 REST operations: 44 as task-oriented
+methods and `mintLiveConnectionToken` internally through `connectLive`. The latter provides a
+managed WebSocket connection to a live run's signal channel.
 
 | Domain | SDK surface | Deliberate boundary |
 | --- | --- | --- |
@@ -13,7 +13,7 @@ provide a managed WebSocket connection.
 | Backtesting | `executeBacktest(...)`, `getBacktestResult(...)`, `Backtest.cancel()` | `prepare` and `execute` identifiers stay inside the workflow. |
 | Sweeps | `sweep(...)`, `Sweep.getResults(...)`, `Sweep.cancel()`, `Sweep.getSensitivity(...)`, `getSweepRunEquityCurve(...)` | `getBoundedSweepRunEquityCurve(...)` is the safe, normalized default. |
 | Dataset | `createDataset`, `importDataset`, `getDatasetImport`, `getDatasets(includeDeleted)`, `getDataset`, `deleteDataset`, `openDatasetUpload`, `uploadDatasetFile`, `finalizeDatasetUpload`, `getDatasetUpload` | `includeDeleted=true` returns soft-deleted entries with `deletedAt`; upload bytes go directly to the presigned target. |
-| Live execution | `startLive`, `getLive`, `stopLive`, `listLive`, `listPublicLive`, `updateLive`, `updateLiveParams`, `sendLiveCommand`, `getLiveSignals`, `getNextLiveSignals`, `getLiveRunPaper`, `getLiveRunPaperEquity`, `getNextLiveRunPaperEquity` | `LiveCommandRequestBuilder` sends a transient owner-only command to a running strategy; the command is not persisted or replayed. `LiveSignalsQuery` and `LivePaperEquityQuery` name optional filters; continuation helpers retain filters. Paper simulation is opt-in. |
+| Live execution | `startLive`, `getLive`, `stopLive`, `listLive`, `listPublicLive`, `updateLive`, `updateLiveParams`, `sendLiveCommand`, `connectLive`, `LiveConnection.updateParams`, `getLiveSignals`, `getNextLiveSignals`, `getLiveRunPaper`, `getLiveRunPaperEquity`, `getNextLiveRunPaperEquity` | `connectLive` manages the WebSocket token, `sig:<runId>` subscription and reconnects; retained signal reads remain the recovery path after a gap. `LiveCommandRequestBuilder` sends owner-only transient commands. Paper simulation is opt-in. |
 
 The SDK intentionally does not expose standalone `prepare` or `execute` methods. They are workflow
 stages whose temporary ids are not useful application state; preparation is idempotent, so this

@@ -26,6 +26,7 @@ import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.FinalizeDatasetUpload202Response;
 import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.client.model.LiveParamsUpdateResult;
+import com.qtsurfer.api.client.model.LiveConnectionToken;
 import com.qtsurfer.api.client.model.LiveCommandResult;
 import com.qtsurfer.api.client.model.LiveRun;
 import com.qtsurfer.api.client.model.LiveRunCompact;
@@ -1020,6 +1021,21 @@ public final class QTSurfer {
         } catch (ApiException e) {
             throw new QTSError("updateLiveParams call failed: " + describe(e), e);
         }
+    }
+
+    /** Connect to one run's real-time signal channel using this client's bearer token. */
+    public CompletableFuture<LiveConnection> connectLive(String runId, LiveConnectionOptions options) {
+        return LiveConnection.connect(runId, options, () -> {
+            try {
+                LiveConnectionToken token = liveExecutionApi.mintLiveConnectionToken();
+                if (token == null || token.getToken() == null) {
+                    throw new QTSError("mintLiveConnectionToken returned an empty token");
+                }
+                return token.getToken();
+            } catch (ApiException error) {
+                throw new QTSError("mintLiveConnectionToken call failed: " + describe(error), error);
+            }
+        });
     }
 
     /** Update live strategy parameters through the SDK request builder. */

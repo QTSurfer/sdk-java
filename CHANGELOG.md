@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.28.0] — 2026-10-01
+
+### Added ✨
+
+- Receive live strategy signals through `connectLive(runId, options)` on both the caller-managed and API-key-authenticated clients. `LiveConnection` handles the `sig:<runId>` WebSocket subscription, reconnects, connection-token renewal, and typed `LiveSignal` callbacks.
+- Update a running strategy over the same connection with `LiveConnection.updateParams(...)`, accepting a map or the fluent request builder and returning a typed `LiveParamsUpdateResult`.
+
+### Changed 🔄
+
+- The official Centrifugo Java client handles the WebSocket protocol. Retained-signal reads remain available for recovery after disconnects; use `relay=true` to receive real-time signals.
+
 ## [0.27.0] — 2026-09-30
 
 ### Added ✨

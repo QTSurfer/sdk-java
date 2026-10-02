@@ -17,8 +17,9 @@
 ---
 
 Where `com.qtsurfer:api-client-java` gives one method per endpoint, this package adds workflow
-orchestration, normalized errors, cancellation, and authenticated-session management. It uses the
-JDK HTTP client, Failsafe for polling and retry, and SLF4J 2.x without shipping a logging binding.
+orchestration, normalized errors, cancellation, authenticated-session management, and managed live
+WebSocket subscriptions. It uses the JDK HTTP client, Failsafe for polling and retry, and SLF4J 2.x
+without shipping a logging binding.
 
 ## Installation
 
@@ -39,8 +40,8 @@ JDK HTTP client, Failsafe for polling and retry, and SLF4J 2.x without shipping 
 </dependency>
 ```
 
-The generated API client and Failsafe are transitive dependencies. Maven Central support is planned
-under the same coordinate.
+The generated API client, Failsafe, and Centrifugo client are transitive dependencies. Maven Central
+support is planned under the same coordinate.
 
 ## Quick start
 
@@ -83,7 +84,7 @@ The README is an entry point; the source documentation follows the API's functio
 | Writing Java strategy source | [API guide](https://qtsurfer.github.io/docs/strategy_coding.html) |
 | Dataset uploads and external imports | [docs/datasets.md](docs/datasets.md) |
 | Account limits and storage usage | [docs/account.md](docs/account.md) |
-| Live execution, paper simulation, and retained signals | [docs/live.md](docs/live.md) |
+| Live execution, WebSocket signals, paper simulation, and retained signals | [docs/live.md](docs/live.md) |
 | Complete operation mapping | [docs/api-coverage.md](docs/api-coverage.md) |
 
 ## Development

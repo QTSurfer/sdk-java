@@ -146,6 +146,56 @@ LiveListResponse ownedRuns = qts.listLive(null, 25);
 ownedRuns.getRuns().forEach(item -> System.out.println(item.getRunId() + " " + item.getState()));
 ```
 
+## Real-time signals and parameter updates
+
+For signals as they happen, use `connectLive(runId, options)` on either `QTSurfer` or
+`AuthenticatedClient`. Start the run with `relay(true)`; this is separate from reading its retained
+history. The connection mints a short-lived token via the configured REST client, subscribes to
+`sig:<runId>`, and completes its future only after the subscription succeeds. An authenticated
+session also refreshes its JWT when token minting returns `401`.
+
+```java
+import com.qtsurfer.api.client.model.LiveParamsUpdateResult;
+import com.qtsurfer.api.client.model.LiveRun;
+import com.qtsurfer.api.client.model.StartLiveRequest;
+import com.qtsurfer.api.sdk.LiveConnection;
+import com.qtsurfer.api.sdk.LiveConnectionOptions;
+import com.qtsurfer.api.sdk.QTSurfer;
+import com.qtsurfer.api.sdk.UpdateLiveParamsRequestBuilder;
+import com.qtsurfer.api.sdk.auth.AuthenticatedClient;
+
+AuthenticatedClient qts = QTSurfer.authenticate();
+LiveRun run = qts.startLive(strategyId, new StartLiveRequest()
+        .name("ETH breakout")
+        .relay(true));
+
+LiveConnectionOptions options = LiveConnectionOptions.builder(signal ->
+        System.out.println(signal.getSignalId() + " " + signal.getKind()))
+        .onError(error -> System.err.println("Live connection: " + error.getMessage()))
+        .build();
+
+try (LiveConnection connection = qts.connectLive(run.getRunId(), options).join()) {
+    LiveParamsUpdateResult changed = connection.updateParams(
+            UpdateLiveParamsRequestBuilder.builder().param("emaFastPeriod", 12)).join();
+    System.out.println("Active parameter version: " + changed.getParamsVersion());
+}
+```
+
+`updateParams` also accepts `Map<String, ?>` and the generated `UpdateLiveParamsRequest`. It uses
+the owner-only `live.params` WebSocket RPC and returns the same typed result as the REST parameter
+update. A rejected subscription fails the `connectLive` future; an RPC error fails the
+`updateParams` future with `QTSError`. `onError` reports later transport, subscription, and decoding
+problems. Close the connection (or call `disconnect()`) to stop reconnecting and release its threads.
+Override the default staging endpoint with `options.url("wss://...")` when targeting another
+deployment; its REST base URL must mint tokens accepted by that WebSocket server.
+
+The Centrifugo Java client negotiates the `centrifuge-protobuf` WebSocket subprotocol. Signal and
+RPC data inside those frames remain JSON and are converted to the generated Java models.
+
+The Centrifugo client reconnects and renews connection tokens automatically. A reconnect can leave
+a gap in the stream: read retained signals with `getLiveSignals` and deduplicate by `signalId` when
+combining them with the WebSocket stream. The subscription itself does not promise replay.
+
 ## Retained signal history
 
 `getLiveSignals(runId, query)` returns one oldest-first `LiveSignalPage`. Build filters with
@@ -175,5 +225,4 @@ qts.getNextLiveSignals(run.getRunId(), page)
 Deduplicate by `signalId` when combining this history with real-time delivery. `getNextLiveSignals`
 follows the HAL link and retains its `sinceMs`, instrument, type, and limit filters. A cursor can
 expire as retention advances; restart without it. The replacement page reports `availableSinceMs`,
-the earliest point that remains readable. This SDK manages live runs over REST and does not provide
-a managed WebSocket connection; only the TypeScript SDK currently supplies that abstraction.
+the earliest point that remains readable.
