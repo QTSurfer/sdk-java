@@ -35,7 +35,11 @@ import com.qtsurfer.api.client.model.LivePaper;
 import com.qtsurfer.api.client.model.LivePaperEquityPage;
 import com.qtsurfer.api.client.model.LiveRun;
 import com.qtsurfer.api.client.model.LiveRunCompact;
+import com.qtsurfer.api.client.model.LiveRunDetail;
+import com.qtsurfer.api.client.model.LiveRunWithStream;
 import com.qtsurfer.api.client.model.LiveSignalPage;
+import com.qtsurfer.api.client.model.LiveStreamRevoked;
+import com.qtsurfer.api.client.model.LiveStreamUrl;
 import com.qtsurfer.api.client.model.PublicLiveListResponse;
 import com.qtsurfer.api.client.model.StartLiveRequest;
 import com.qtsurfer.api.client.model.SendLiveCommandRequest;
@@ -824,8 +828,8 @@ public final class AuthenticatedClient {
         return withRefreshOn401(() -> callDataset(accountApi::getAccountUsage, "getAccountUsage"));
     }
 
-    /** Start a compiled strategy's live run. */
-    public LiveRun startLive(String strategyId, StartLiveRequest request) {
+    /** Start a compiled strategy's live run, optionally returning its secret plain-stream URL. */
+    public LiveRunWithStream startLive(String strategyId, StartLiveRequest request) {
         Objects.requireNonNull(strategyId, "strategyId");
         Objects.requireNonNull(request, "request");
         return withRefreshOn401(() -> callDataset(
@@ -866,11 +870,32 @@ public final class AuthenticatedClient {
                 .build()));
     }
 
-    /** Read a strategy's active or most recent live run. */
-    public LiveRun getLive(String strategyId) {
+    /** Read a strategy's active or most recent live run, including its stream URL while active. */
+    public LiveRunWithStream getLive(String strategyId) {
         Objects.requireNonNull(strategyId, "strategyId");
         return withRefreshOn401(() -> callDataset(
                 () -> liveExecutionApi.getLive(strategyId), "getLive"));
+    }
+
+    /** Read one caller-owned live run by its canonical run id. */
+    public LiveRunDetail getLiveRun(String runId) {
+        Objects.requireNonNull(runId, "runId");
+        return withRefreshOn401(() -> callDataset(
+                () -> liveExecutionApi.getLiveRun(runId), "getLiveRun"));
+    }
+
+    /** Replace a run's secret plain-stream URL. Treat the returned URL as a credential. */
+    public LiveStreamUrl rotateLiveStream(String runId) {
+        Objects.requireNonNull(runId, "runId");
+        return withRefreshOn401(() -> callDataset(
+                () -> liveExecutionApi.rotateLiveStream(runId), "rotateLiveStream"));
+    }
+
+    /** Revoke a run's plain-stream URL permanently. */
+    public LiveStreamRevoked revokeLiveStream(String runId) {
+        Objects.requireNonNull(runId, "runId");
+        return withRefreshOn401(() -> callDataset(
+                () -> liveExecutionApi.revokeLiveStream(runId), "revokeLiveStream"));
     }
 
     /** Request that a strategy's live run stop. */

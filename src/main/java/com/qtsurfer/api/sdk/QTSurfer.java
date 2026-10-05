@@ -30,7 +30,11 @@ import com.qtsurfer.api.client.model.LiveConnectionToken;
 import com.qtsurfer.api.client.model.LiveCommandResult;
 import com.qtsurfer.api.client.model.LiveRun;
 import com.qtsurfer.api.client.model.LiveRunCompact;
+import com.qtsurfer.api.client.model.LiveRunDetail;
+import com.qtsurfer.api.client.model.LiveRunWithStream;
 import com.qtsurfer.api.client.model.LiveSignalPage;
+import com.qtsurfer.api.client.model.LiveStreamRevoked;
+import com.qtsurfer.api.client.model.LiveStreamUrl;
 import com.qtsurfer.api.client.model.LiveListResponse;
 import com.qtsurfer.api.client.model.LivePaper;
 import com.qtsurfer.api.client.model.LivePaperEquityPage;
@@ -911,8 +915,8 @@ public final class QTSurfer {
         }
     }
 
-    /** Start the compiled strategy's live run. */
-    public LiveRun startLive(String strategyId, StartLiveRequest request) {
+    /** Start the compiled strategy's live run, optionally returning its secret plain-stream URL. */
+    public LiveRunWithStream startLive(String strategyId, StartLiveRequest request) {
         Objects.requireNonNull(strategyId, "strategyId");
         Objects.requireNonNull(request, "request");
         try {
@@ -963,13 +967,43 @@ public final class QTSurfer {
                 .build()));
     }
 
-    /** Read a strategy's live run. */
-    public LiveRun getLive(String strategyId) {
+    /** Read a strategy's live run, including its plain-stream URL while it is active. */
+    public LiveRunWithStream getLive(String strategyId) {
         Objects.requireNonNull(strategyId, "strategyId");
         try {
             return liveExecutionApi.getLive(strategyId);
         } catch (ApiException e) {
             throw new QTSError("getLive call failed: " + describe(e), e);
+        }
+    }
+
+    /** Read one caller-owned live run by its canonical run id. */
+    public LiveRunDetail getLiveRun(String runId) {
+        Objects.requireNonNull(runId, "runId");
+        try {
+            return liveExecutionApi.getLiveRun(runId);
+        } catch (ApiException e) {
+            throw new QTSError("getLiveRun call failed: " + describe(e), e);
+        }
+    }
+
+    /** Replace a run's secret plain-stream URL. Treat the returned URL as a credential. */
+    public LiveStreamUrl rotateLiveStream(String runId) {
+        Objects.requireNonNull(runId, "runId");
+        try {
+            return liveExecutionApi.rotateLiveStream(runId);
+        } catch (ApiException e) {
+            throw new QTSError("rotateLiveStream call failed: " + describe(e), e);
+        }
+    }
+
+    /** Revoke a run's plain-stream URL permanently. */
+    public LiveStreamRevoked revokeLiveStream(String runId) {
+        Objects.requireNonNull(runId, "runId");
+        try {
+            return liveExecutionApi.revokeLiveStream(runId);
+        } catch (ApiException e) {
+            throw new QTSError("revokeLiveStream call failed: " + describe(e), e);
         }
     }
 

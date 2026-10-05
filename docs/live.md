@@ -20,6 +20,25 @@ qts.stopLive(strategyId);
 
 `getLive(strategyId)` and `stopLive(strategyId)` address the one live run of a strategy. `stopLive` requests a stop; inspect the returned or subsequent `LiveRun.state` before assuming execution has ended.
 
+### Plain WebSocket stream
+
+Set `stream(true)` when starting a run to receive a secret plain-WebSocket URL in
+`LiveRunWithStream.streamUrl`. It emits one JSON signal per text frame from sandbox onward and
+also enables retained-signal relay. Treat the URL as a credential: do not log it, include it in
+issues, or expose it to untrusted callers. `getLive(strategyId)` returns it while the run is active.
+
+```java
+LiveRunWithStream run = qts.startLive(strategyId, new StartLiveRequest()
+        .name("ETH breakout")
+        .stream(true));
+URI streamUrl = run.getStreamUrl();
+```
+
+Use `getLiveRun(runId)` to inspect one owned run by its canonical identity, including
+`updatedAtMs` and current optional `stats`. `rotateLiveStream(runId)` replaces the stream URL;
+`revokeLiveStream(runId)` permanently disables it. A revoked stream cannot be added back to an
+existing run.
+
 ### Simulate fills with paper trading
 
 Paper trading is opt-in. Add `paper` to the start request to simulate fills, per-quote-currency

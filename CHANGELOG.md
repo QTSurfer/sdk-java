@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.29.0] — 2026-10-05
+
+### Added ✨
+
+- Read a live run by ID and manage its secret WebSocket URL with rotate/revoke operations.
+- Include `LiveRunWithStream` responses and `LiveRunDetail` snapshot statistics in the SDK.
+
 ## [0.28.0] — 2026-10-01
 
 ### Added ✨
