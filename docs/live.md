@@ -8,17 +8,33 @@ Live execution runs a compiled strategy continuously. It is separate from a back
 
 ## Start, inspect, and stop a run
 
-Build `StartLiveRequest` with the live-run name, optional description, visibility, sources, parameter map, and relay choice. `strategyId` identifies the compiled strategy. Sources and parameters use the generated API models so their exact fields stay aligned with the OpenAPI contract.
+Build `StartLiveRequest` with the live-run name, optional description, visibility, sources, parameter map, and relay choice. `strategyId` identifies the compiled strategy. Sources and parameters use the generated API models so their exact fields stay aligned with the OpenAPI contract. On each `LiveSourceRequest`, `instruments` may be omitted: the platform then uses the instruments declared by the compiled QTScript strategy, or all instruments in the selected exchange/segment if that strategy declares none. An explicit non-empty list still selects the requested instruments; an empty or `null` list is rejected.
 
 ```java
 StartLiveRequest request = new StartLiveRequest().name("ETH breakout").description("Monitored execution").relay(true);
-LiveRun run = qts.startLive(strategyId, request);
-LiveRun current = qts.getLive(strategyId);
+LiveRunWithStream run = qts.startLive(strategyId, request);
+LiveRunWithStream current = qts.getLive(strategyId);
 System.out.println(current.getRunId() + " " + current.getState());
 qts.stopLive(strategyId);
 ```
 
 `getLive(strategyId)` and `stopLive(strategyId)` address the one live run of a strategy. `stopLive` requests a stop; inspect the returned or subsequent `LiveRun.state` before assuming execution has ended.
+
+### Warm up indicators before a run starts
+
+Set `warmFrom(seconds)` only on `StartLiveRequest` to replay market history before the first live
+event. It accepts 0–3600 seconds; `0` disables warmup. Omit it to preserve the platform's automatic
+0–900-second warmup, aligned to the current 15-minute block. The effective value is available from
+`LiveRunWithStream.getWarmFrom()` and `LiveRunDetail.getWarmFrom()`; it may be absent only for a run
+created before this field existed. It cannot be changed by `updateLiveParams`: stop and start a new
+run to use a different warmup.
+
+```java
+LiveRunWithStream run = qts.startLive(strategyId, new StartLiveRequest()
+        .name("ETH breakout")
+        .warmFrom(300));
+System.out.println(run.getWarmFrom());
+```
 
 ### Plain WebSocket stream
 
@@ -55,7 +71,7 @@ StartLiveRequest request = new StartLiveRequest()
                 .feeLeg(LivePaperConfig.FeeLegEnum.RECEIVED)
                 .percentAmountToLock(20.0)
                 .output(LivePaperConfig.OutputEnum.SEPARATE));
-LiveRun paperRun = qts.startLive(strategyId, request);
+LiveRunWithStream paperRun = qts.startLive(strategyId, request);
 LivePaper snapshot = qts.getLiveRunPaper(paperRun.getRunId());
 snapshot.getAccounts().forEach(account -> System.out.printf(
         "%s equity=%s openPositions=%d%n",

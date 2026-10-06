@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.30.0] — 2026-10-06
+
+### Changed 🔄
+
+- Build against `com.qtsurfer:api-client-java` `0.22.0` (OpenAPI `0.128.22`). Live source
+  instruments may be omitted to use the strategy's declared instruments, or all instruments when
+  the strategy declares none; explicit lists retain their existing meaning. `StartLiveRequest`
+  also exposes start-only `warmFrom` (0–3600 seconds, zero disables replay), with the effective
+  value available on `LiveRunWithStream` and `LiveRunDetail`.
+
 ## [0.29.0] — 2026-10-05
 
 ### Added ✨
