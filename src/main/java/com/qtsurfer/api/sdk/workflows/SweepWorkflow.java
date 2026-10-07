@@ -184,7 +184,7 @@ public final class SweepWorkflow {
 
         // Unlike a backtest, this does NOT cancel the polling future: a cancelled sweep keeps
         // every row it already finished, and the only way the SDK can hand those back is to keep
-        // polling until the platform reports CANCELLED and then resolve normally.
+        // polling until the platform reports CANCELLED with no shards still in flight.
         Runnable cancelHook = () -> {
             try {
                 backtestingApi.cancelSweep(req.exchangeId(), TICKER, requestId, sweepId);
@@ -234,7 +234,7 @@ public final class SweepWorkflow {
                 opts.pollInterval(), opts.maxPollInterval(), opts.timeout(),
                 () -> readResults(req.exchangeId(), requestId, sweepId,
                         opts.order(), opts.ranking(), QTSExecutionError::new),
-                r -> StatusNormalizer.normalize(statusOf(r)) == Normalized.IN_PROGRESS,
+                SweepWorkflow::stillRunning,
                 r -> progressSink.accept(new SweepProgressEvent(
                         BacktestStage.EXECUTING, percentOf(r), null, r == null ? null : r.getProgress())));
 
@@ -303,6 +303,20 @@ public final class SweepWorkflow {
 
     private static boolean isCancelled(ExecuteSweepResult result) {
         return statusOf(result) == ExecuteSweepResult.StatusEnum.CANCELLED;
+    }
+
+    /**
+     * A cancellation is acknowledged before runs already in flight have drained.
+     * Keep reading the leaderboard until the API reports no pending shards.
+     */
+    private static boolean stillRunning(ExecuteSweepResult result) {
+        Normalized status = StatusNormalizer.normalize(statusOf(result));
+        if (status == Normalized.IN_PROGRESS) return true;
+        if (!isCancelled(result)) return false;
+        SweepProgress progress = result.getProgress();
+        return progress != null
+                && progress.getPendingShards() != null
+                && progress.getPendingShards() > 0;
     }
 
     /**

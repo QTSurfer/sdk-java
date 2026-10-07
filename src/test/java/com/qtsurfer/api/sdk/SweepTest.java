@@ -65,7 +65,7 @@ class SweepTest {
     private final AtomicInteger sweepAcceptedStatus = new AtomicInteger(202);
     private final AtomicInteger sweepResultStatus = new AtomicInteger(200);
     private final AtomicReference<String> sensitivityBody = new AtomicReference<>("{}");
-    private final AtomicReference<String> cancelledResult = new AtomicReference<>();
+    private final Deque<String> cancelledResults = new ArrayDeque<>();
     private final AtomicBoolean cancelRequested = new AtomicBoolean();
 
     /** One recorded HTTP call: enough to assert on the route and on what was sent. */
@@ -103,8 +103,8 @@ class SweepTest {
             cancelRequested.set(true);
             return new Response(200, "{\"status\":\"cancelling\",\"sweepId\":\"swp-1\"}");
         }
-        if (cancelRequested.get() && cancelledResult.get() != null) {
-            return new Response(200, cancelledResult.get());
+        if (cancelRequested.get() && !cancelledResults.isEmpty()) {
+            return new Response(200, cancelledResults.poll());
         }
         String next = sweepResults.poll();
         if (next != null) lastSweepResult.set(next);
@@ -149,8 +149,13 @@ class SweepTest {
     }
 
     private static String progress(long done, int total) {
+        return progressWithPending(done, total, 0);
+    }
+
+    private static String progressWithPending(long done, int total, int pendingShards) {
         return "{\"done\":" + done + ",\"total\":" + total + ",\"aborted\":0,\"shardCount\":4,"
-                + "\"pendingShards\":0,\"failedShards\":0,\"retrying\":0,\"notStarted\":0}";
+                + "\"pendingShards\":" + pendingShards
+                + ",\"failedShards\":0,\"retrying\":0,\"notStarted\":0}";
     }
 
     private static String row(int runIx, double sharpe) {
@@ -551,13 +556,13 @@ class SweepTest {
     /**
      * Cancelling a sweep does not throw the finished rows away. The handle diverges
      * from {@link Backtest} here on purpose: the poll keeps running until the platform
-     * reports {@code CANCELLED}, and {@code await()} then resolves with what was scored
+     * reports {@code CANCELLED} with no pending shards, and {@code await()} then resolves with what was scored
      * before the stop.
      */
     @Test
     void cancelResolvesWithTheRowsAlreadyScored() throws Exception {
         lastSweepResult.set(running(10, 44));
-        cancelledResult.set("""
+        cancelledResults.add("""
                 {"sweepId":"swp-1","status":"CANCELLED","objective":"sharpe","order":"ranked",\
                 "ranking":"plateau","progress":%s,"leaderboardSize":1,"truncated":false,\
                 "leaderboard":[%s]}""".formatted(progress(10, 44), row(2, 1.5)));
@@ -574,6 +579,28 @@ class SweepTest {
         assertEquals(Sweep.State.CANCELED, sweep.state());
         assertEquals("/backtest/binance/ticker/executeSweep/prep-1/swp-1",
                 call("DELETE", "/swp-1").path());
+    }
+
+    @Test
+    void cancellationDrainsInFlightShardsBeforeResolving() throws Exception {
+        lastSweepResult.set(running(10, 44));
+        cancelledResults.add("""
+                {"sweepId":"swp-1","status":"CANCELLED","progress":%s,"leaderboardSize":1,
+                "truncated":false,"leaderboard":[%s]}""".formatted(
+                progressWithPending(10, 44, 2), row(2, 1.5)));
+        cancelledResults.add("""
+                {"sweepId":"swp-1","status":"CANCELLED","progress":%s,"leaderboardSize":2,
+                "truncated":false,"leaderboard":[%s,%s]}""".formatted(
+                progressWithPending(12, 44, 0), row(2, 1.5), row(3, 1.2)));
+
+        Sweep sweep = qts.sweep(request().build(), fastOpts().build()).get(10, TimeUnit.SECONDS);
+        assertTrue(sweep.cancel());
+        ExecuteSweepResult result = sweep.await().get(10, TimeUnit.SECONDS);
+
+        assertEquals(ExecuteSweepResult.StatusEnum.CANCELLED, result.getStatus());
+        assertEquals(2, result.getLeaderboard().size());
+        assertEquals(3, recorded.stream().filter(r -> "GET".equals(r.method())
+                && r.path().endsWith("/swp-1")).count());
     }
 
     // ---- walk-forward ----

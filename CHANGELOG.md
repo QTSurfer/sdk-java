@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.30.1] — 2026-10-07
+
+### Fixed 🐛
+
+- Keep polling a cancelled parameter sweep while `progress.pendingShards` is above zero, so rows
+  from runs already in flight are included before `await()` resolves.
+
 ## [0.30.0] — 2026-10-06
 
 ### Changed 🔄
