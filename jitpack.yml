@@ -1,4 +1,4 @@
 jdk:
   - openjdk17
 install:
-  - mvn install -B -DskipTests
+  - mvn install -B -DskipTests -Dmaven.wagon.http.retryHandler.count=8 -Dmaven.wagon.httpconnectionManager.ttlSeconds=60
