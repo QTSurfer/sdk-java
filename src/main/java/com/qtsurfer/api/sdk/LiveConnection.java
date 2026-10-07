@@ -12,7 +12,10 @@ import io.github.centrifugal.centrifuge.ConnectionTokenGetter;
 import io.github.centrifugal.centrifuge.DisconnectedEvent;
 import io.github.centrifugal.centrifuge.ErrorEvent;
 import io.github.centrifugal.centrifuge.EventListener;
+import io.github.centrifugal.centrifuge.HistoryOptions;
+import io.github.centrifugal.centrifuge.HistoryResult;
 import io.github.centrifugal.centrifuge.Options;
+import io.github.centrifugal.centrifuge.Publication;
 import io.github.centrifugal.centrifuge.PublicationEvent;
 import io.github.centrifugal.centrifuge.RPCResult;
 import io.github.centrifugal.centrifuge.ReplyError;
@@ -20,10 +23,13 @@ import io.github.centrifugal.centrifuge.SubscribedEvent;
 import io.github.centrifugal.centrifuge.Subscription;
 import io.github.centrifugal.centrifuge.SubscriptionErrorEvent;
 import io.github.centrifugal.centrifuge.SubscriptionEventListener;
+import io.github.centrifugal.centrifuge.StreamPosition;
 import io.github.centrifugal.centrifuge.TokenCallback;
 import io.github.centrifugal.centrifuge.UnsubscribedEvent;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -38,13 +44,15 @@ import java.util.function.Supplier;
  *
  * <p>The connection owns its Centrifugo client and must be closed when no longer needed.
  * Reconnects and token refresh are managed automatically. A reconnect may miss signals;
- * use {@code getLiveSignals} to read retained history and deduplicate by signal ID.
+ * use {@link #history(int, LiveSignalHistory.Position)} for the channel's recent sandbox
+ * signals, or {@code getLiveSignals} for durable retained history.
  */
 public final class LiveConnection implements AutoCloseable {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final String runId;
     private final Client client;
+    private Subscription subscription;
     private final LiveConnectionOptions options;
     private final CompletableFuture<LiveConnection> ready = new CompletableFuture<>();
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -121,6 +129,7 @@ public final class LiveConnection implements AutoCloseable {
                         }
                     }
                 });
+                connection.subscription = subscription;
                 subscription.subscribe();
                 client.connect();
             } catch (Exception error) {
@@ -178,6 +187,48 @@ public final class LiveConnection implements AutoCloseable {
         return updateParams(UpdateLiveParamsRequestBuilder.builder().params(params));
     }
 
+    /** Read up to 300 recent sandbox signals from the subscribed channel, oldest first. */
+    public CompletableFuture<LiveSignalHistory> history() {
+        return history(300, null);
+    }
+
+    /**
+     * Read the channel's recent sandbox signals after an optional earlier position.
+     *
+     * <p>A {@code null} position starts at the oldest held signal. A limit of zero reads only
+     * the current position. Error 112 means the position's epoch is no longer available;
+     * retry without {@code since} or use the REST retained-signals endpoint.
+     */
+    public CompletableFuture<LiveSignalHistory> history(int limit, LiveSignalHistory.Position since) {
+        if (limit < 0) throw new IllegalArgumentException("limit must not be negative");
+        if (closed.get()) return CompletableFuture.failedFuture(new QTSError("Live connection is closed"));
+
+        HistoryOptions.Builder request = new HistoryOptions.Builder().withLimit(limit);
+        if (since != null) request.withSince(new StreamPosition(since.offset(), since.epoch()));
+        CompletableFuture<LiveSignalHistory> result = new CompletableFuture<>();
+        subscription.history(request.build(), (error, response) -> {
+            if (error != null) {
+                result.completeExceptionally(rpcError("history", error));
+                return;
+            }
+            try {
+                result.complete(decodeHistory(Objects.requireNonNull(response, "Empty history response")));
+            } catch (Exception parseError) {
+                result.completeExceptionally(new QTSError("Invalid history response", parseError));
+            }
+        });
+        return result;
+    }
+
+    private static LiveSignalHistory decodeHistory(HistoryResult response) throws IOException {
+        List<LiveSignalHistory.Publication> publications = new ArrayList<>();
+        for (Publication publication : response.getPublications()) {
+            publications.add(new LiveSignalHistory.Publication(
+                    MAPPER.readValue(publication.getData(), LiveSignal.class), publication.getOffset()));
+        }
+        return new LiveSignalHistory(publications, response.getEpoch(), response.getOffset());
+    }
+
     private void deliver(byte[] data) {
         if (closed.get()) return;
         LiveSignal signal;
@@ -213,6 +264,13 @@ public final class LiveConnection implements AutoCloseable {
             return new QTSError("live.params failed: " + reply.getCode() + " " + reply.getMessage(), reply);
         }
         return new QTSError("live.params failed: " + error.getMessage(), error);
+    }
+
+    private static QTSError rpcError(String operation, Throwable error) {
+        if (error instanceof ReplyError reply) {
+            return new QTSError(operation + " failed: " + reply.getCode() + " " + reply.getMessage(), reply);
+        }
+        return new QTSError(operation + " failed: " + error.getMessage(), error);
     }
 
     /** Stop the subscription and reconnect loop; equivalent to {@link #close()}. */

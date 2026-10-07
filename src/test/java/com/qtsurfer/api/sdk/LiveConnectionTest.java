@@ -45,6 +45,7 @@ class LiveConnectionTest {
     private final AtomicReference<String> connectionToken = new AtomicReference<>();
     private final AtomicReference<String> channel = new AtomicReference<>();
     private final AtomicReference<JsonNode> rpcBody = new AtomicReference<>();
+    private final AtomicReference<Protocol.HistoryRequest> historyRequest = new AtomicReference<>();
     private final AtomicReference<WebSocket> firstSocket = new AtomicReference<>();
     private final AtomicReference<String> refreshedConnectionToken = new AtomicReference<>();
     private final AtomicReference<String> lastAuthorization = new AtomicReference<>();
@@ -53,6 +54,8 @@ class LiveConnectionTest {
     private final AtomicInteger socketConnections = new AtomicInteger();
     private boolean rejectSubscription;
     private boolean rejectRpc;
+    private boolean historyPositionLost;
+    private boolean historyNotSubscribed;
     private boolean refreshToken;
     private boolean retryUnauthorized;
 
@@ -161,6 +164,53 @@ class LiveConnectionTest {
     }
 
     @Test
+    void readsSandboxHistoryWithSignalOffsetsAndPosition() throws Exception {
+        try (LiveConnection connection = client().connectLive("run-1", options())
+                .get(5, TimeUnit.SECONDS)) {
+            LiveSignalHistory history = connection.history().get(5, TimeUnit.SECONDS);
+            assertEquals("sig:run-1", historyRequest.get().getChannel());
+            assertEquals(300, historyRequest.get().getLimit());
+            assertEquals(1, history.publications().size());
+            assertEquals("signal-1", history.publications().get(0).signal().getSignalId());
+            assertEquals(41, history.publications().get(0).offset());
+            assertEquals(new LiveSignalHistory.Position(41, "epoch-1"), history.position());
+
+            connection.history(0, history.position()).get(5, TimeUnit.SECONDS);
+            assertEquals(0, historyRequest.get().getLimit());
+            assertEquals(41, historyRequest.get().getSince().getOffset());
+            assertEquals("epoch-1", historyRequest.get().getSince().getEpoch());
+        }
+    }
+
+    @Test
+    void reportsLostHistoryPositionAndRejectsClosedConnection() throws Exception {
+        historyPositionLost = true;
+        LiveConnection connection = client().connectLive("run-1", options()).get(5, TimeUnit.SECONDS);
+        try {
+            CompletionException error = assertThrows(CompletionException.class,
+                    () -> connection.history(300, new LiveSignalHistory.Position(42, "old-epoch")).join());
+            assertInstanceOf(QTSError.class, error.getCause());
+            assertEquals("history failed: 112 unrecoverable position", error.getCause().getMessage());
+        } finally {
+            connection.close();
+        }
+        CompletionException closed = assertThrows(CompletionException.class,
+                () -> connection.history().join());
+        assertEquals("Live connection is closed", closed.getCause().getMessage());
+    }
+
+    @Test
+    void reportsHistoryOnUnsubscribedChannel() throws Exception {
+        historyNotSubscribed = true;
+        try (LiveConnection connection = client().connectLive("run-1", options())
+                .get(5, TimeUnit.SECONDS)) {
+            CompletionException error = assertThrows(CompletionException.class,
+                    () -> connection.history().join());
+            assertEquals("history failed: 103 not subscribed", error.getCause().getMessage());
+        }
+    }
+
+    @Test
     void authenticatedSessionRefreshesJwtBeforeMintingWebSocketToken() throws Exception {
         retryUnauthorized = true;
         AuthenticatedClient authenticated = QTSurfer.authenticate("apikey",
@@ -244,6 +294,30 @@ class LiveConnectionTest {
                         .setRpc(Protocol.RPCResult.newBuilder().setData(ByteString.copyFromUtf8(
                                 "{\"runId\":\"run-1\",\"paramsVersion\":2,\"effectiveAtMs\":123}")))
                         .build());
+            }
+        } else if (command.hasHistory()) {
+            historyRequest.set(command.getHistory());
+            if (historyNotSubscribed) {
+                send(socket, Protocol.Reply.newBuilder().setId(command.getId())
+                        .setError(Protocol.Error.newBuilder().setCode(103)
+                                .setMessage("not subscribed")).build());
+            } else if (historyPositionLost) {
+                send(socket, Protocol.Reply.newBuilder().setId(command.getId())
+                        .setError(Protocol.Error.newBuilder().setCode(112)
+                                .setMessage("unrecoverable position")).build());
+            } else {
+                byte[] signal = ("{\"v\":1,\"signalId\":\"signal-1\",\"runId\":\"run-1\","
+                        + "\"stage\":\"sandbox\",\"type\":\"info\",\"eventTsMs\":123,"
+                        + "\"emittedAtMs\":124,\"digest\":\"hash\"}")
+                        .getBytes(StandardCharsets.UTF_8);
+                Protocol.HistoryResult.Builder history = Protocol.HistoryResult.newBuilder()
+                        .setEpoch("epoch-1").setOffset(42);
+                if (command.getHistory().getLimit() != 0) {
+                    history.addPublications(Protocol.Publication.newBuilder()
+                            .setData(ByteString.copyFrom(signal)).setOffset(41));
+                }
+                send(socket, Protocol.Reply.newBuilder().setId(command.getId())
+                        .setHistory(history).build());
             }
         } else if (command.hasRefresh()) {
             refreshedConnectionToken.set(command.getRefresh().getToken());

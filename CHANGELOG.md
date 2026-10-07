@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.31.0] — 2026-10-07
+
+### Added ✨
+
+- Read up to 300 recent sandbox signals directly over a subscribed live connection with
+  `LiveConnection.history()`. The typed `LiveSignalHistory` includes each signal's stream offset
+  and an epoch-aware position for fetching only later signals after a reconnect. Subscribing does
+  not replay missed signals automatically; a lost position (error `112`) can be retried without
+  `since`, and REST `getLiveSignals` covers signals beyond the WebSocket's five-minute sandbox
+  retention or from the live stage.
+
 ## [0.30.1] — 2026-10-07
 
 ### Fixed 🐛

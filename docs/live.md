@@ -228,8 +228,33 @@ The Centrifugo Java client negotiates the `centrifuge-protobuf` WebSocket subpro
 RPC data inside those frames remain JSON and are converted to the generated Java models.
 
 The Centrifugo client reconnects and renews connection tokens automatically. A reconnect can leave
-a gap in the stream: read retained signals with `getLiveSignals` and deduplicate by `signalId` when
-combining them with the WebSocket stream. The subscription itself does not promise replay.
+a gap in the stream: use `connection.history()` for recent sandbox signals or `getLiveSignals` for
+durable retained signals in either stage. Deduplicate by `signalId` when combining history with the
+WebSocket stream. The subscription itself does not promise replay.
+
+### Read recent sandbox signals over WebSocket
+
+`connection.history()` reads up to 300 signals that the subscribed `sig:<runId>` channel still
+holds, oldest first. Each publication has its original stream `offset`; the reply also supplies
+an `epoch` and the newest channel offset. Subscribe first (as `connectLive` does), then read
+history and deduplicate overlapping pushed signals by `signalId`.
+
+```java
+LiveSignalHistory first = connection.history().join();
+first.publications().forEach(item ->
+        System.out.println(item.offset() + " " + item.signal().getSignalId()));
+LiveSignalHistory later = connection.history(300, first.position()).join();
+```
+
+Keep the position from an earlier history reply, plus the last signal offset you have, to read
+only later signals after reconnecting. `history(0, null)` returns the current position without
+signals. `first.position()` uses the last returned publication's offset, so pages smaller than 300
+do not skip held signals; for an empty reply it uses the newest channel offset. If error `112`
+reports a lost epoch, retry without a position; signals older than the
+channel now holds require REST `getLiveSignals`. Error `103` means the connection is not subscribed.
+Only sandbox signals are held: the channel keeps the newest 300 until five minutes after its last
+sandbox signal and never holds live-stage signals. The REST endpoint is the recovery path for
+anything outside that short-lived window.
 
 ## Retained signal history
 
