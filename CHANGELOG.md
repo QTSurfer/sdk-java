@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.32.0] — 2026-10-10
+
+### Changed 🔄
+
+- Build against `api-client-java` 0.23.0 (OpenAPI 0.128.25). `startLive` passes through
+  `StartLiveRequest.sandbox(true)` to repeat the sandbox trial for a compilation with an earlier
+  promoted run and no runs stopped for exceeding resource limits; otherwise eligible compilations
+  start directly in `LIVE`. First runs and recompiled strategies still start in `SANDBOX`.
+
 ## [0.31.0] — 2026-10-07
 
 ### Added ✨

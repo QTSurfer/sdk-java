@@ -6,6 +6,12 @@ authenticated client; see [auth.md](auth.md) for setup and token ownership.
 
 Live execution runs a compiled strategy continuously. It is separate from a backtest: start it deliberately, poll its state, and stop it when it is no longer wanted. See [account.md](account.md) before enabling retained signals on a high-volume run.
 
+A first run of a compiled strategy starts in `SANDBOX`. A later run starts directly in `LIVE` with
+the earlier gate verdict when a run of that same compilation was promoted and none of its runs was
+stopped for exceeding resource limits. Recompiled strategies start in `SANDBOX` again. Set
+`sandbox(true)` on `StartLiveRequest` to repeat the trial for an eligible compilation; this is
+useful when debugging because recent WebSocket `history()` is retained only for sandbox signals.
+
 ## Start, inspect, and stop a run
 
 Build `StartLiveRequest` with the live-run name, optional description, visibility, sources, parameter map, and relay choice. `strategyId` identifies the compiled strategy. Sources and parameters use the generated API models so their exact fields stay aligned with the OpenAPI contract. On each `LiveSourceRequest`, `instruments` may be omitted: the platform then uses the instruments declared by the compiled QTScript strategy, or all instruments in the selected exchange/segment if that strategy declares none. An explicit non-empty list still selects the requested instruments; an empty or `null` list is rejected.
