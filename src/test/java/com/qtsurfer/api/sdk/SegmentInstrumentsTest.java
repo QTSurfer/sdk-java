@@ -29,10 +29,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SegmentInstrumentsTest {
 
     private static final String ENVELOPE = """
-            {"data":[{"id":"BTC/USDT","base":"BTC","quote":"USDT","lastPrice":84250.50,\
+            {"data":[{"id":"BTC/USDT","symbol":"BTC/USDT","base":"BTC","quote":"USDT","lastPrice":84250.50,\
             "coverage":{"tickers":{"from":"2026-04-10T21:00:00Z","to":"2026-07-09T20:29:05Z"}}},\
-            {"id":"ETH/USDT","base":"ETH","quote":"USDT","lastPrice":3120.25}],\
-            "meta":{"count":2},"_links":{"self":{"href":"/exchange/binance/futures/instruments"}}}""";
+            {"id":"ETH/USDT","symbol":"ETH/USDT","base":"ETH","quote":"USDT","lastPrice":3120.25}],\
+            "meta":{"venueType":"cex","segment":"spot"},"_links":{"self":{"href":"/exchange/binance/futures/instruments"}}}""";
 
     private HttpServer server;
     private QTSurfer qts;
@@ -111,5 +111,32 @@ class SegmentInstrumentsTest {
     void rejectsNullArguments() {
         assertThrows(NullPointerException.class, () -> qts.instruments("binance", null));
         assertThrows(NullPointerException.class, () -> qts.instruments(null, "spot"));
+    }
+
+    @Test
+    void poolDiscoveryPreservesPoolFieldsAndArbitraryProtocolPath() {
+        responseBody.set("""
+                {"data":[{"id":"0x0000000000000000000000000000000000000001","symbol":"WETH/USDC",
+                "base":"WETH","quote":"USDC","baseAddress":"0x02","quoteAddress":"0x03",
+                "feePercent":0.3,"tvlUsd":20000,"volume24hUsd":1000}],
+                "meta":{"venueType":"dex","segment":"uniswap-v3"},"_links":{}}
+                """);
+        var pools = qts.getPools("robinhood", "uniswap-v3");
+        assertEquals("0x02", pools.get(0).getBaseAddress());
+        assertEquals("WETH/USDC", pools.get(0).getSymbol());
+        assertNull(pools.get(0).getLastPrice());
+        assertEquals("/exchange/robinhood/uniswap-v3/instruments", exchanges.get(0).getRequestURI().getPath());
+        assertTrue(assertThrows(QTSError.class, () -> qts.getInstruments("robinhood"))
+                .getMessage().contains("getPools"));
+    }
+
+    @Test
+    void emptyVenueCataloguesAreTypedAndNeverCoerced() {
+        responseBody.set("{\"data\":[],\"meta\":{\"venueType\":\"dex\"},\"_links\":{}}");
+        assertTrue(qts.getPools("robinhood").isEmpty());
+        assertThrows(QTSError.class, () -> qts.getInstruments("robinhood"));
+        responseBody.set("{\"data\":[],\"meta\":{\"venueType\":\"cex\"},\"_links\":{}}");
+        assertTrue(qts.getInstruments("binance").isEmpty());
+        assertThrows(QTSError.class, () -> qts.getPools("binance"));
     }
 }

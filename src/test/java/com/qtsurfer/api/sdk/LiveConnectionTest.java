@@ -70,7 +70,7 @@ class LiveConnectionTest {
                     return new MockResponse().setHeader("Content-Type", "application/json")
                             .setBody("{\"access_token\":\"jwt-" + requestNumber
                                     + "\",\"token_type\":\"Bearer\",\"expires_in\":3600,"
-                                    + "\"scopes\":[],\"tier\":\"free\"}");
+                                    + "\"scopes\":{\"live\":[\"read\"]},\"tier\":\"free\"}");
                 }
                 if ("/v1/live/token".equals(request.getPath())) {
                     int requestNumber = tokenRequests.incrementAndGet();

@@ -21,8 +21,11 @@ AuthenticatedClient qts = QTSurfer.authenticate("ak_...");
 ```
 
 `AuthenticatedClient` refreshes a token before it expires and retries one `401` after obtaining a
-new token. An invalid, revoked, or expired API key raises `QTSAuthError`; a rate limit or other API
-failure raises `QTSError`.
+new token. An invalid, revoked, or expired API key raises `QTSAuthError`; where the deployment
+requires scopes, a valid key with none returns `403` `apikey_without_scopes` and no token. Add at
+least one resource/action scope to the key in the web app; retrying the same key will not help.
+`QTSAuthError.getAuthTokenError()` retains the typed server error, including its code and message;
+`getStatusCode()` reports the HTTP status. A rate limit or other API failure raises `QTSError`.
 
 ## Persisting tokens
 
@@ -61,3 +64,16 @@ QTSurfer qts = QTSurfer.builder()
 ```
 
 This entry point does not exchange an API key or refresh the supplied token.
+
+## Read granted scopes
+
+`AuthTokenResponse.getScopes()` and `qts.getAccount().getScopes()` return the same map of
+resource names to action lists, for example `{"backtests":["read","write","execute"],
+"exchanges":["read"]}`. Names are lower case; a key with no scopes has `{}`. Scopes are reported
+but the API does not yet reject an operation for a missing scope. Do not infer enforcement from
+the presence of this map. See the [API auth guide](https://qtsurfer.github.io/docs/auth.html) for
+resource and action definitions.
+
+Custom token stores must preserve the nested map when serializing `AuthTokenResponse`. If an old
+persisted token has the former `scopes: []` shape, discard it and obtain a new token, or migrate
+only an empty legacy list to `{}` before reading it with the current generated model.

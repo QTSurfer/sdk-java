@@ -4,6 +4,12 @@ Examples assume an authenticated `QTSurfer qts`; see [auth.md](auth.md) for setu
 
 ## Backtest workflow
 
+Managed kline preparation accepts all fifteen cadences, as ticker and funding data do:
+`1s`, `5s`, `1m`, `3m`, `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `8h`, `12h`, `1d`, `1w`, `1q`.
+Omission selects `1s`. For a dataset, omission uses its own cadence; a requested cadence must be an
+equal or coarser exact multiple. DEX venues are not direct backtest sources: import history as a
+dataset first, then use `exchangeId=user`.
+
 `executeBacktest(request)` compiles the source, prepares the requested window, submits execution, polls
 both asynchronous stages, and completes with `ResultMap`. Polling uses Failsafe exponential backoff
 and optional stage timeouts.

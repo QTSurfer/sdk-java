@@ -73,8 +73,8 @@ class AuthenticatedClientTest {
                 String resp = idx < tokenResponses.size()
                         ? tokenResponses.get(idx)
                         : tokenResponses.get(tokenResponses.size() - 1);
-                if (resp.startsWith("401:")) {
-                    status = 401;
+                if (resp.matches("^[0-9]{3}:.*")) {
+                    status = Integer.parseInt(resp.substring(0, 3));
                     body = resp.substring(4).getBytes(StandardCharsets.UTF_8);
                 } else {
                     status = 200;
@@ -119,8 +119,11 @@ class AuthenticatedClientTest {
                 ctype = "application/json";
             } else if (path.endsWith("/instruments")) {
                 status = 200;
-                body = ("{\"data\":[{\"id\":\"BTC/USDT\",\"base\":\"BTC\",\"quote\":\"USDT\"}],"
-                        + "\"meta\":{},\"_links\":{}}").getBytes(StandardCharsets.UTF_8);
+                body = (path.contains("robinhood")
+                        ? "{\"data\":[],\"meta\":{\"venueType\":\"dex\"},\"_links\":{}}"
+                        : "{\"data\":[{\"id\":\"BTC/USDT\",\"symbol\":\"BTC/USDT\",\"base\":\"BTC\",\"quote\":\"USDT\"}],"
+                            + "\"meta\":{\"venueType\":\"cex\"},\"_links\":{}}")
+                        .getBytes(StandardCharsets.UTF_8);
                 ctype = "application/json";
             } else if (path.endsWith("/account/usage")) {
                 status = 200;
@@ -131,7 +134,7 @@ class AuthenticatedClientTest {
             } else if (path.endsWith("/account")) {
                 status = 200;
                 body = ("{\"userId\":\"user-1\",\"tier\":\"free\",\"maxDatasets\":10,"
-                        + "\"maxDatasetBytes\":1000,\"maxTotalStorageBytes\":5000,"
+                        + "\"maxDatasetBytes\":1000,\"maxTotalStorageBytes\":5000,\"scopes\":{\"exchanges\":[\"read\"]},"
                         + "\"_links\":{\"usage\":{\"href\":\"/v1/account/usage\"}}}")
                         .getBytes(StandardCharsets.UTF_8);
                 ctype = "application/json";
@@ -196,7 +199,7 @@ class AuthenticatedClientTest {
     private static String jwt(String access, String tier, int expiresIn) {
         return "{\"access_token\":\"" + access
                 + "\",\"token_type\":\"Bearer\",\"expires_in\":" + expiresIn + ",\"tier\":\""
-                + tier + "\"}";
+                + tier + "\",\"scopes\":{\"exchanges\":[\"read\"],\"backtests\":[\"read\",\"execute\"]}}";
     }
 
     private AuthOptions opts() {
@@ -208,6 +211,7 @@ class AuthenticatedClientTest {
         tokenResponses.add(jwt("jwt-explicit", "free"));
         AuthenticatedClient session = QTSurfer.authenticate("ak_explicit", opts());
         assertEquals("jwt-explicit", session.token().getAccessToken());
+        assertEquals(List.of("read", "execute"), session.token().getScopes().get("backtests"));
         assertEquals(1, tokenCalls.get());
         RequestRecord first = requests.get(0);
         assertEquals("ak_explicit", first.apikey());
@@ -220,6 +224,8 @@ class AuthenticatedClientTest {
         AuthenticatedClient session = QTSurfer.authenticate("ak_live", opts());
 
         assertEquals("free", session.getAccount().getTier());
+        assertEquals(List.of("read"), session.getAccount().getScopes().get("exchanges"));
+        assertTrue(session.getPools("robinhood", "uniswap-v3").isEmpty());
         assertEquals(102L, session.getAccountUsage().getStorageBytesUsed());
         assertEquals(0, session.listLive(null, 20).getRuns().size());
         assertTrue(session.getStrategies(true).isEmpty());
@@ -308,6 +314,20 @@ class AuthenticatedClientTest {
     }
 
     @Test
+    void scopeFreeKeyFailurePreservesTypedCodeAndDoesNotRetry() {
+        tokenResponses.add("403:{\"code\":\"apikey_without_scopes\","
+                + "\"message\":\"Create a key with at least one scope in the web app.\"}");
+
+        QTSAuthError ex = assertThrows(QTSAuthError.class,
+                () -> QTSurfer.authenticate("ak_no_scopes", opts()));
+
+        assertEquals(403, ex.getStatusCode().orElseThrow());
+        assertEquals("apikey_without_scopes", ex.getAuthTokenError().orElseThrow().getCode().getValue());
+        assertTrue(ex.getAuthTokenError().orElseThrow().getMessage().contains("at least one scope"));
+        assertEquals(1, tokenCalls.get());
+    }
+
+    @Test
     void saveCalledOnTokenStoreOnEachMint() {
         tokenResponses.add(jwt("jwt-stored", "elite"));
         AtomicReference<AuthTokenResponse> stored = new AtomicReference<>();
@@ -321,6 +341,7 @@ class AuthenticatedClientTest {
         assertEquals(1, saves.get());
         assertNotNull(stored.get());
         assertEquals("jwt-stored", stored.get().getAccessToken());
+        assertEquals(List.of("read", "execute"), stored.get().getScopes().get("backtests"));
     }
 
     @Test

@@ -8,6 +8,9 @@ import com.qtsurfer.api.client.api.ExchangeApi;
 import com.qtsurfer.api.client.api.LiveExecutionApi;
 import com.qtsurfer.api.client.api.StrategyApi;
 import com.qtsurfer.api.client.binary.ExchangeBinaryDownloads;
+import com.qtsurfer.api.client.binary.BinaryDownload;
+import com.qtsurfer.api.client.model.PoolDetail;
+import com.qtsurfer.api.sdk.internal.MarketCatalogues;
 import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.Account;
@@ -1056,7 +1059,7 @@ public final class AuthenticatedClient {
         Objects.requireNonNull(exchangeId, "exchangeId");
         return withRefreshOn401(() -> {
             try {
-                return exchangeApi.listInstruments(exchangeId).getData();
+                return MarketCatalogues.instruments(exchangeApi.listInstruments(exchangeId));
             } catch (ApiException e) {
                 throw new QTSError("instruments call failed: " + describe(e), e);
             }
@@ -1090,7 +1093,7 @@ public final class AuthenticatedClient {
         Objects.requireNonNull(segment, "segment");
         return withRefreshOn401(() -> {
             try {
-                return exchangeApi.listSegmentInstruments(exchangeId, segment).getData();
+                return MarketCatalogues.instruments(exchangeApi.listSegmentInstruments(exchangeId, segment));
             } catch (ApiException e) {
                 throw new QTSError("instruments call failed: " + describe(e), e);
             }
@@ -1101,6 +1104,84 @@ public final class AuthenticatedClient {
     @Deprecated(forRemoval = false)
     public List<InstrumentDetail> instruments(String exchangeId, String segment) {
         return getInstruments(exchangeId, segment);
+    }
+
+    /**
+     * Read ranked pools for a DEX venue's default protocol, with refresh-on-401.
+     *
+     * @param exchangeId DEX exchange id from {@link #getExchanges()}
+     * @return pools; use the id, not the symbol, as a live instrument
+     * @throws QTSError on HTTP failure or a CEX catalogue
+     */
+    public List<PoolDetail> getPools(String exchangeId) {
+        Objects.requireNonNull(exchangeId, "exchangeId");
+        return withRefreshOn401(() -> {
+            try {
+                return MarketCatalogues.pools(exchangeApi.listInstruments(exchangeId));
+            } catch (ApiException e) {
+                throw new QTSError("pools call failed: " + describe(e), e);
+            }
+        });
+    }
+
+    /**
+     * Read ranked pools for one DEX protocol, with refresh-on-401.
+     *
+     * @param exchangeId DEX exchange id from {@link #getExchanges()}
+     * @param segment protocol listed for the exchange
+     * @return typed pools with tokens, fees, liquidity and optional price/volume
+     * @throws QTSError on HTTP failure or a CEX catalogue
+     */
+    public List<PoolDetail> getPools(String exchangeId, String segment) {
+        Objects.requireNonNull(exchangeId, "exchangeId");
+        Objects.requireNonNull(segment, "segment");
+        return withRefreshOn401(() -> {
+            try {
+                return MarketCatalogues.pools(exchangeApi.listSegmentInstruments(exchangeId, segment));
+            } catch (ApiException e) {
+                throw new QTSError("pools call failed: " + describe(e), e);
+            }
+        });
+    }
+
+    /**
+     * Download tickers with timestamp-unit and provisional headers; retries one refreshed 401.
+     *
+     * @param exchangeId centralized exchange id
+     * @param base base asset
+     * @param quote quote asset
+     * @param hour UTC hour within the last seven days, {@code YYYY-MM-DDTHH}
+     * @param format binary format; null defaults to Lastra
+     * @return response whose body the caller must close
+     * @throws QTSDownloadError on HTTP or transport failure
+     */
+    public BinaryDownload downloadTickersWithMetadata(
+            String exchangeId, String base, String quote, String hour, DownloadFormat format) {
+        return withRefreshOn401(() -> {
+            try {
+                return downloads.getTickersHourWithMetadata(exchangeId, base, quote, hour,
+                        (format == null ? DownloadFormat.LASTRA : format).wire());
+            } catch (ApiException e) {
+                throw new QTSDownloadError("tickers download failed: " + describe(e), e);
+            }
+        });
+    }
+
+    /**
+     * Download klines with response metadata; retries one refreshed 401.
+     *
+     * @see #downloadTickersWithMetadata(String, String, String, String, DownloadFormat)
+     */
+    public BinaryDownload downloadKlinesWithMetadata(
+            String exchangeId, String base, String quote, String hour, DownloadFormat format) {
+        return withRefreshOn401(() -> {
+            try {
+                return downloads.getKlinesHourWithMetadata(exchangeId, base, quote, hour,
+                        (format == null ? DownloadFormat.LASTRA : format).wire());
+            } catch (ApiException e) {
+                throw new QTSDownloadError("klines download failed: " + describe(e), e);
+            }
+        });
     }
 
     /** Equivalent to {@link #tickers(String, String, String, String, DownloadFormat)} with {@link DownloadFormat#LASTRA}. */

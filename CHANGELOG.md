@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.33.0] — 2026-10-17
+
+### Added ✨
+
+- Discover typed DEX pools with `getPools(exchangeId[, segment])` on both clients, including pool
+  addresses, token addresses, fees, liquidity and optional price/volume. Existing `getInstruments`
+  signatures continue returning CEX instruments and direct DEX callers to `getPools`.
+- Preserve binary media type, Lastra timestamp units and provisional-data boundaries with
+  `downloadTickersWithMetadata` / `downloadKlinesWithMetadata`; the existing stream methods remain.
+- Inspect server error reasons, suggested recovery calls, HTTP status and retry headers through
+  `QTSError.getReason()`, `getNext()`, `getStatusCode()` and `getResponseHeaders()`.
+- Import CEX spot ticker or kline history with the generated `DatasetImportCexRequest` passed to
+  `importDataset`; token and account scopes now expose resource-to-actions maps.
+
+### Changed 🔄
+
+- Adopt API client 0.24.0 (OpenAPI 0.128.37): CEX/DEX venue discovery and live sources, expanded
+  import and kline cadences, and seven-day hourly downloads. Lastra timestamps are microseconds;
+  recent hours may be provisional or `NOT_YET_AVAILABLE`. Older hours carry an import recovery
+  request. The guides cover retries, unknown market fields and the reported scopes. Where a
+  deployment requires scopes, authenticating a valid key with none now returns `403`
+  `apikey_without_scopes` and no token; configure at least one resource/action scope on the key.
+
 ## [0.32.0] — 2026-10-10
 
 ### Changed 🔄

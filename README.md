@@ -21,6 +21,10 @@ orchestration, normalized errors, cancellation, authenticated-session management
 WebSocket subscriptions. It uses the JDK HTTP client, Failsafe for polling and retry, and SLF4J 2.x
 without shipping a logging binding.
 
+Discover CEX instruments with `getInstruments` and typed DEX pools with `getPools`, import CEX or
+DEX history, and preserve provisional-data and timestamp-unit headers with
+`downloadTickersWithMetadata` / `downloadKlinesWithMetadata`. See the focused guides below.
+
 ## Installation
 
 ### JitPack

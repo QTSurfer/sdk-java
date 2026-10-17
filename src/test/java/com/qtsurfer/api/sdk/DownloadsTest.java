@@ -22,6 +22,35 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DownloadsTest {
 
+    @Test
+    void metadataIncludesProvisionalBoundaryAndUntouchedBytes() throws Exception {
+        responseBody.set(new byte[] {0, -1, -128});
+        try (var response = qts.downloadTickersWithMetadata("binance", "BTC", "USDT", "2026-10-17T10", null)) {
+            assertArrayEquals(new byte[] {0, -1, -128}, response.body().readAllBytes());
+            assertEquals("micros", response.timestampUnit().orElseThrow());
+            assertEquals("provisional", response.dataStatus().orElseThrow());
+            assertEquals("2026-10-17T10:30:00Z", response.dataThrough().orElseThrow());
+        }
+    }
+
+    @Test
+    void typedDownloadReasonsRecoveryAndRetryHeadersSurvive() {
+        for (String reason : List.of("OUTSIDE_WINDOW", "NOT_YET_AVAILABLE", "NO_DATA", "TEMPORARILY_UNAVAILABLE")) {
+            responseStatus.set(reason.equals("OUTSIDE_WINDOW") ? 400
+                    : reason.equals("TEMPORARILY_UNAVAILABLE") ? 503 : 404);
+            responseBody.set(("{\"message\":\"request failed\",\"reason\":\"" + reason
+                    + "\",\"next\":{\"method\":\"POST\",\"path\":\"/datasets/imports\",\"body\":{\"type\":\"cex\"}}}")
+                    .getBytes(StandardCharsets.UTF_8));
+            var error = assertThrows(QTSDownloadError.class,
+                    () -> qts.downloadKlinesWithMetadata("binance", "BTC", "USDT", "2026-10-17T10", null));
+            assertEquals(reason, error.getReason().orElseThrow());
+            assertEquals(responseStatus.get().intValue(), error.getStatusCode().orElseThrow());
+            assertEquals("/datasets/imports", error.getNext().orElseThrow().getPath());
+            assertEquals("cex", error.getNext().orElseThrow().getBody().get("type"));
+            assertEquals("30", error.getResponseHeaders().orElseThrow().firstValue("Retry-After").orElseThrow());
+        }
+    }
+
     private HttpServer server;
     private QTSurfer qts;
     private final List<HttpExchange> exchanges = new ArrayList<>();
@@ -35,7 +64,11 @@ class DownloadsTest {
             exchanges.add(exchange);
             byte[] body = responseBody.get();
             int status = responseStatus.get();
-            exchange.getResponseHeaders().add("Content-Type", "application/vnd.lastra");
+            exchange.getResponseHeaders().add("Content-Type", "application/vnd.qtsurfer.lastra");
+            exchange.getResponseHeaders().add("X-Ts-Unit", "micros");
+            exchange.getResponseHeaders().add("X-Data-Status", "provisional");
+            exchange.getResponseHeaders().add("X-Data-Through", "2026-10-17T10:30:00Z");
+            exchange.getResponseHeaders().add("Retry-After", "30");
             exchange.sendResponseHeaders(status, body.length == 0 ? -1 : body.length);
             try (var os = exchange.getResponseBody()) {
                 if (body.length > 0) os.write(body);

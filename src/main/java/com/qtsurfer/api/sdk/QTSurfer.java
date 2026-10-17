@@ -7,6 +7,9 @@ import com.qtsurfer.api.client.api.ExchangeApi;
 import com.qtsurfer.api.client.api.LiveExecutionApi;
 import com.qtsurfer.api.client.api.StrategyApi;
 import com.qtsurfer.api.client.binary.ExchangeBinaryDownloads;
+import com.qtsurfer.api.client.binary.BinaryDownload;
+import com.qtsurfer.api.client.model.PoolDetail;
+import com.qtsurfer.api.sdk.internal.MarketCatalogues;
 import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.CreateDatasetRequest;
@@ -728,7 +731,7 @@ public final class QTSurfer {
     public List<InstrumentDetail> getInstruments(String exchangeId) {
         Objects.requireNonNull(exchangeId, "exchangeId");
         try {
-            return exchangeApi.listInstruments(exchangeId).getData();
+            return MarketCatalogues.instruments(exchangeApi.listInstruments(exchangeId));
         } catch (ApiException e) {
             throw new QTSError("instruments call failed: " + describe(e), e);
         }
@@ -758,7 +761,7 @@ public final class QTSurfer {
         Objects.requireNonNull(exchangeId, "exchangeId");
         Objects.requireNonNull(segment, "segment");
         try {
-            return exchangeApi.listSegmentInstruments(exchangeId, segment).getData();
+            return MarketCatalogues.instruments(exchangeApi.listSegmentInstruments(exchangeId, segment));
         } catch (ApiException e) {
             throw new QTSError("instruments call failed: " + describe(e), e);
         }
@@ -768,6 +771,76 @@ public final class QTSurfer {
     @Deprecated(forRemoval = false)
     public List<InstrumentDetail> instruments(String exchangeId, String segment) {
         return getInstruments(exchangeId, segment);
+    }
+
+    /**
+     * Read a DEX venue's default protocol pool catalogue. Use each pool's id as the live instrument.
+     *
+     * @param exchangeId DEX exchange id from {@link #getExchanges()}
+     * @return ranked pools; the catalogue is a sample, not every valid pool
+     * @throws QTSError on HTTP failure or a CEX catalogue; use {@code getInstruments} for CEX
+     */
+    public List<PoolDetail> getPools(String exchangeId) {
+        Objects.requireNonNull(exchangeId, "exchangeId");
+        try {
+            return MarketCatalogues.pools(exchangeApi.listInstruments(exchangeId));
+        } catch (ApiException e) {
+            throw new QTSError("pools call failed: " + describe(e), e);
+        }
+    }
+
+    /**
+     * Read the pools of a DEX protocol. Prices and quote volumes are optional and up to an hour old.
+     *
+     * @param exchangeId DEX exchange id from {@link #getExchanges()}
+     * @param segment protocol from that exchange's segments
+     * @return ranked pools with token, fee, liquidity and optional market data
+     * @throws QTSError on HTTP failure or a CEX catalogue
+     */
+    public List<PoolDetail> getPools(String exchangeId, String segment) {
+        Objects.requireNonNull(exchangeId, "exchangeId");
+        Objects.requireNonNull(segment, "segment");
+        try {
+            return MarketCatalogues.pools(exchangeApi.listSegmentInstruments(exchangeId, segment));
+        } catch (ApiException e) {
+            throw new QTSError("pools call failed: " + describe(e), e);
+        }
+    }
+
+    /**
+     * Download a UTC hour of tickers with its media type, timestamp unit and provisional headers.
+     *
+     * @param exchangeId centralized exchange id
+     * @param base base asset
+     * @param quote quote asset
+     * @param hour UTC hour within the last seven days, {@code YYYY-MM-DDTHH}
+     * @param format binary format; null defaults to Lastra
+     * @return unbuffered response, which the caller must close
+     * @throws QTSDownloadError on HTTP or transport failure
+     */
+    public BinaryDownload downloadTickersWithMetadata(
+            String exchangeId, String base, String quote, String hour, DownloadFormat format) {
+        try {
+            return downloads.getTickersHourWithMetadata(exchangeId, base, quote, hour,
+                    (format == null ? DownloadFormat.LASTRA : format).wire());
+        } catch (ApiException e) {
+            throw new QTSDownloadError("tickers download failed: " + describe(e), e);
+        }
+    }
+
+    /**
+     * Download a UTC hour of klines with response metadata; close the returned response.
+     *
+     * @see #downloadTickersWithMetadata(String, String, String, String, DownloadFormat)
+     */
+    public BinaryDownload downloadKlinesWithMetadata(
+            String exchangeId, String base, String quote, String hour, DownloadFormat format) {
+        try {
+            return downloads.getKlinesHourWithMetadata(exchangeId, base, quote, hour,
+                    (format == null ? DownloadFormat.LASTRA : format).wire());
+        } catch (ApiException e) {
+            throw new QTSDownloadError("klines download failed: " + describe(e), e);
+        }
     }
 
     /**

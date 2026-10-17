@@ -1,4 +1,4 @@
-# Dataset uploads
+# Dataset uploads and imports
 
 Examples assume an authenticated `QTSurfer qts`; see [auth.md](auth.md) for setup and token ownership.
 
@@ -47,6 +47,34 @@ var state = qts.getDatasetImport(created.getDatasetId(), created.getImportId());
 The generated `DatasetImportRequest` model exposes the source-specific request fields. Keep polling
 with `getDatasetImport` while its status is `FETCHING` or `INGESTING`, then inspect its error message
 when it is `FAILED`.
+
+For CEX history, including hours older than the seven-day direct-download window, select `CEX`
+and provide the `cex` block. `exchange` must be a CEX id from `getExchanges()`; `spot` is the only
+import segment today. `dataType` selects `ticker` or `klines`, and becomes the dataset type.
+
+```java
+import com.qtsurfer.api.client.model.DatasetImportCexRequest;
+import com.qtsurfer.api.client.model.DatasetImportRequest;
+import java.time.OffsetDateTime;
+
+var imported = qts.importDataset(new DatasetImportRequest()
+        .name("btc-history").instrument("BTC/USDT")
+        .from(OffsetDateTime.parse("2026-10-01T00:00:00Z"))
+        .to(OffsetDateTime.parse("2026-10-02T00:00:00Z"))
+        .type(DatasetImportRequest.TypeEnum.CEX)
+        .cex(new DatasetImportCexRequest().exchange("binance")
+                .segment(DatasetImportCexRequest.SegmentEnum.SPOT)
+                .dataType(DatasetImportCexRequest.DataTypeEnum.KLINES)));
+var importedState = qts.getDatasetImport(imported.getDatasetId(), imported.getImportId());
+```
+
+CEX `cadence` accepts `1s`, `5s`, `1m`, `3m`, `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `8h`,
+`12h`, `1d`, `1w`, `1q` for either data type. Omit it to choose the finest cadence available over
+the entire range; mixed history uses the common coarser cadence instead of introducing a gap.
+A request finer than the available cadence, or not an exact multiple, ends `FAILED` asynchronously
+and names the finest available cadence. DEX accepts only `1s`, `1m`, `5m`, or omission for native
+per-trade events. Dataset versions also report discovered `3m`, `2h`, `8h`, `12h` and `1w` steps.
+Imports consume dataset limits and are bounded by account `maxImportRangeHours`.
 
 ## Upload a first version
 

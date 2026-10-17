@@ -18,6 +18,8 @@ authenticated client when the application already exchanges an API key and needs
 refresh; both surfaces return the same generated response types.
 
 `getAccount()` returns the caller id, tier, and the limits that apply to the account.
+Its required `scopes` is a resource-to-actions map shared with token responses; the API reports it
+but does not yet enforce missing scopes. See [auth.md](auth.md#read-granted-scopes).
 
 ```java
 import com.qtsurfer.api.client.model.Account;

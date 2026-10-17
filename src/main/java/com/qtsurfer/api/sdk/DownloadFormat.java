@@ -6,7 +6,7 @@ import com.qtsurfer.api.client.binary.ExchangeBinaryDownloads;
  * Wire format for hourly tickers/klines downloads.
  *
  * <ul>
- *   <li>{@link #LASTRA} — native QTSurfer columnar format ({@code application/vnd.lastra}).
+ *   <li>{@link #LASTRA} — native QTSurfer columnar format ({@code application/vnd.qtsurfer.lastra}).
  *       Cheaper to serve and to consume. Use a Lastra reader (e.g. {@code lastra-java}).</li>
  *   <li>{@link #PARQUET} — Apache Parquet, converted on-the-fly server-side
  *       ({@code application/vnd.apache.parquet}). Use when the client can't read Lastra.</li>

@@ -14,10 +14,19 @@ useful when debugging because recent WebSocket `history()` is retained only for 
 
 ## Start, inspect, and stop a run
 
-Build `StartLiveRequest` with the live-run name, optional description, visibility, sources, parameter map, and relay choice. `strategyId` identifies the compiled strategy. Sources and parameters use the generated API models so their exact fields stay aligned with the OpenAPI contract. On each `LiveSourceRequest`, `instruments` may be omitted: the platform then uses the instruments declared by the compiled QTScript strategy, or all instruments in the selected exchange/segment if that strategy declares none. An explicit non-empty list still selects the requested instruments; an empty or `null` list is rejected.
+Build `StartLiveRequest` with the live-run name, optional description, visibility, sources, parameter map, and relay choice. `strategyId` identifies the compiled strategy. Sources and parameters use the generated API models so their exact fields stay aligned with the OpenAPI contract. On a CEX `LiveSourceRequest`, `instruments` may be omitted: the platform then uses the instruments declared by the compiled QTScript strategy, or all instruments in the selected exchange/segment if that strategy declares none. An explicit non-empty list still selects the requested instruments; an empty or explicit `null` list is rejected. A DEX source always needs one pool address.
 
 ```java
-StartLiveRequest request = new StartLiveRequest().name("ETH breakout").description("Monitored execution").relay(true);
+import com.qtsurfer.api.client.model.LiveSourceRequest;
+import com.qtsurfer.api.client.model.LiveRunWithStream;
+import com.qtsurfer.api.client.model.StartLiveRequest;
+import java.util.List;
+
+LiveSourceRequest source = new LiveSourceRequest().venueType(LiveSourceRequest.VenueTypeEnum.CEX)
+        .exchange("binance").segment("spot").type(LiveSourceRequest.TypeEnum.TICKER)
+        .instruments(List.of("ETH/USDT"));
+StartLiveRequest request = new StartLiveRequest().sources(List.of(source))
+        .name("ETH breakout").description("Monitored execution").relay(true);
 LiveRunWithStream run = qts.startLive(strategyId, request);
 LiveRunWithStream current = qts.getLive(strategyId);
 System.out.println(current.getRunId() + " " + current.getState());
@@ -26,7 +35,37 @@ qts.stopLive(strategyId);
 
 `getLive(strategyId)` and `stopLive(strategyId)` address the one live run of a strategy. `stopLive` requests a stop; inspect the returned or subsequent `LiveRun.state` before assuming execution has ended.
 
-### Warm up indicators before a run starts
+### Choose a supported source
+
+Discover `venueType` (`cex` or `dex`), exchange id and `liveSegments` with `getExchanges()`. The
+platform rejects unknown combinations or catalogue segments without live data with `400`; it
+normalizes accepted source values to lower case. The server still accepts legacy `cx`/`dx` inputs,
+but generated requests now use `CEX`/`DEX`. CEX selection can be omitted as above; set
+`instruments(null)` on a generated request to omit its default empty array.
+
+### Read one DEX pool
+
+Find a pool with `getPools("robinhood", "uniswap-v3")`; its `id` is the pool address, while signals
+name the pair using `symbol`. A DEX source requires exactly one `0x` address with 40 hexadecimal
+digits, cannot omit instruments or use wildcards, and supports only `kline`. The strategy must
+consume klines. Valid pools need not appear in the hourly discovery sample.
+
+```java
+var pool = qts.getPools("robinhood", "uniswap-v3").get(0);
+LiveSourceRequest dex = new LiveSourceRequest().venueType(LiveSourceRequest.VenueTypeEnum.DEX)
+        .exchange("robinhood").segment("uniswap-v3").type(LiveSourceRequest.TypeEnum.KLINE)
+        .instruments(List.of(pool.getId()));
+LiveRunWithStream poolRun = qts.startLive(klineStrategyId,
+        new StartLiveRequest().sources(List.of(dex)).warmFrom(0));
+```
+
+DEX delivers one candle per second, including flat candles during seconds without trades. Warmup
+can only replay data the platform received; a pool nobody else follows may have no older data.
+An invalid pool for its chain/protocol or unavailable pool-following capacity ends the run `FAILED`
+within seconds with `desired=STOPPED`, freeing its active slot. Read `reason` for the explanation;
+do not parse its human-readable sentences. Other failures may leave `desired=RUNNING` until stopped.
+
+### Configure warmup
 
 Set `warmFrom(seconds)` only on `StartLiveRequest` to replay market history before the first live
 event. It accepts 0–3600 seconds; `0` disables warmup. Omit it to preserve the platform's automatic
@@ -37,6 +76,7 @@ run to use a different warmup.
 
 ```java
 LiveRunWithStream run = qts.startLive(strategyId, new StartLiveRequest()
+        .sources(List.of(source))
         .name("ETH breakout")
         .warmFrom(300));
 System.out.println(run.getWarmFrom());
@@ -51,6 +91,7 @@ issues, or expose it to untrusted callers. `getLive(strategyId)` returns it whil
 
 ```java
 LiveRunWithStream run = qts.startLive(strategyId, new StartLiveRequest()
+        .sources(List.of(source))
         .name("ETH breakout")
         .stream(true));
 URI streamUrl = run.getStreamUrl();
@@ -69,6 +110,7 @@ the `paper` block, the paper read methods return `404`.
 
 ```java
 StartLiveRequest request = new StartLiveRequest()
+        .sources(List.of(source))
         .name("ETH paper run")
         .relay(true)
         .paper(new LivePaperConfig()
