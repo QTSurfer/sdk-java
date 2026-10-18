@@ -77,6 +77,17 @@ jobs:
             --title "$GITHUB_REF_NAME" \
             --notes-file /tmp/release-notes.md
 
+  reference-docs:
+    needs: release
+    # release itself ran past a skipped integration job, so say outright that
+    # only its own success matters here.
+    if: always() && needs.release.result == 'success'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/reference-docs.yml
+    with:
+      tag: ${{ github.ref_name }}
+
   docs:
     needs: unit
     runs-on: ubuntu-latest
