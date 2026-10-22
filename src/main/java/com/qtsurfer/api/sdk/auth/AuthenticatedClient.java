@@ -35,7 +35,7 @@ import com.qtsurfer.api.client.model.LiveConnectionToken;
 import com.qtsurfer.api.client.model.LiveCommandResult;
 import com.qtsurfer.api.client.model.LiveListResponse;
 import com.qtsurfer.api.client.model.LivePaper;
-import com.qtsurfer.api.client.model.LivePaperEquityPage;
+import com.qtsurfer.api.client.model.LivePaperEquityCurve;
 import com.qtsurfer.api.client.model.LiveRun;
 import com.qtsurfer.api.client.model.LiveRunCompact;
 import com.qtsurfer.api.client.model.LiveRunDetail;
@@ -847,16 +847,18 @@ public final class AuthenticatedClient {
     }
 
     /** Read one page of a run's paper-equity history. */
-    public LivePaperEquityPage getLiveRunPaperEquity(String runId, LivePaperEquityQuery query) {
+    public LivePaperEquityCurve getLiveRunPaperEquity(String runId, LivePaperEquityQuery query) {
         Objects.requireNonNull(runId, "runId");
         Objects.requireNonNull(query, "query");
         return withRefreshOn401(() -> callDataset(() -> liveExecutionApi.getLiveRunPaperEquity(
-                runId, query.currency(), query.sinceMs(), query.cursor(), query.limit()), "getLiveRunPaperEquity"));
+                runId, query.currency(), query.instrument(), value(query.measure()), query.sinceMs(),
+                query.outMode(), query.resample(), query.differential(), query.limit(), query.cursor()),
+                "getLiveRunPaperEquity"));
     }
 
-    /** Continue a paper-equity page while preserving its account and range filters. */
-    public Optional<LivePaperEquityPage> getNextLiveRunPaperEquity(
-            String runId, LivePaperEquityPage page) {
+    /** Continue a paper-equity page while preserving its filters. */
+    public Optional<LivePaperEquityCurve> getNextLiveRunPaperEquity(
+            String runId, LivePaperEquityCurve page) {
         Objects.requireNonNull(runId, "runId");
         Objects.requireNonNull(page, "page");
         String href = page.getLinks() == null || page.getLinks().getNext() == null
@@ -865,12 +867,23 @@ public final class AuthenticatedClient {
         var parameters = LivePageLinks.queryParameters(href);
         String cursor = parameters.get("cursor");
         if (cursor == null) throw new IllegalArgumentException("Paper equity continuation link has no cursor");
+        String outMode = parameters.get("outMode");
+        String measure = parameters.get("measure");
         return Optional.of(getLiveRunPaperEquity(runId, LivePaperEquityQuery.builder()
                 .currency(parameters.get("currency"))
+                .instrument(parameters.get("instrument"))
+                .measure(measure == null ? null : LivePaperEquityCurve.MeasureEnum.fromValue(measure))
                 .sinceMs(parseLong(parameters.get("sinceMs")))
+                .outMode(outMode == null ? null : EquityCurveOutMode.fromValue(outMode))
+                .resample(parseInteger(parameters.get("resample")))
+                .differential(parseBoolean(parameters.get("differential")))
                 .cursor(cursor)
                 .limit(parseInteger(parameters.get("limit")))
                 .build()));
+    }
+
+    private static String value(LivePaperEquityCurve.MeasureEnum measure) {
+        return measure == null ? null : measure.getValue();
     }
 
     /** Read a strategy's active or most recent live run, including its stream URL while active. */
@@ -1000,6 +1013,7 @@ public final class AuthenticatedClient {
 
     private static Long parseLong(String value) { return value == null ? null : Long.valueOf(value); }
     private static Integer parseInteger(String value) { return value == null ? null : Integer.valueOf(value); }
+    private static Boolean parseBoolean(String value) { return value == null ? null : Boolean.valueOf(value); }
 
     /**
      * Stream a local file to the initial presigned target without attaching API credentials.

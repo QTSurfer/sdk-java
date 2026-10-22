@@ -104,8 +104,8 @@ existing run.
 
 ### Simulate fills with paper trading
 
-Paper trading is opt-in. Add `paper` to the start request to simulate fills, per-quote-currency
-balances, open positions, and backtest-style KPIs. It never submits orders to an exchange. Without
+Paper trading is opt-in. Add `paper` to the start request to simulate fills, balances, open
+positions, and backtest-style KPIs. It never submits orders to an exchange. Without
 the `paper` block, the paper read methods return `404`.
 
 ```java
@@ -126,12 +126,16 @@ snapshot.getAccounts().forEach(account -> System.out.printf(
         account.getCurrency(), account.getEquity(), account.getOpenPositions().size()));
 ```
 
-`initialFunding` defaults to `100` per quote-currency account; `feeRate` defaults to `0.001` and
+`initialFunding` defaults to `100` per account; `feeRate` defaults to `0.001` and
 sets both buy/sell rates unless overridden; `feeLeg` defaults to `RECEIVED` (`QUOTE` and `BASE` are
 also accepted); `percentAmountToLock` defaults to the strategy setting or 10% of remaining free
-balance; `output` defaults to `SEPARATE`. Each quote currency gets a separate account. When `output`
-is `MIX`, paper events are also written into retained signals. See the [API paper-trading guide](https://www.qtsurfer.com/docs/developers/api/live_paper)
-for economics, account semantics, and signal event shapes.
+balance; `output` defaults to `SEPARATE`; `accounts` defaults to `CURRENCY`, with one shared account
+per quote currency. Set `.accounts(LivePaperConfig.AccountsEnum.INSTRUMENT)` to isolate each named
+instrument in its own account; wildcard instruments are not allowed in this mode. When `output` is
+`MIX`, paper events are also written into retained signals. The snapshot includes position marks,
+unrealised and total PnL when the current mark is known, and per-instrument realised results. See
+the [API paper-trading guide](https://www.qtsurfer.com/docs/developers/api/live_paper) for economics,
+account semantics, and signal event shapes.
 
 The authenticated session exposes the same methods and retries once on `401`:
 
@@ -141,22 +145,33 @@ LivePaper snapshot = authenticated.getLiveRunPaper(paperRun.getRunId());
 
 ### Read paper-equity history
 
-`getLiveRunPaperEquity(runId, query)` reads the lifetime equity curve oldest first. Omit `currency`
-to interleave all quote accounts; use `sinceMs` to start at a market-time instant. The API defaults
-`limit` to 100 and caps it at 1000. A cursor takes precedence over `sinceMs`; use the continuation
-helper to preserve currency, size, and other link filters.
+`getLiveRunPaperEquity(runId, query)` reads a lifetime paper curve oldest first. With no options it
+returns a complete curve, which may be compacted by the server; inspect `meta.outMode` to choose
+between `points` and the parallel `timestamps`/`equities` arrays. `resample` and `differential` use
+the shared equity-curve rules. Paging is opt-in with `limit` or `cursor`, cannot be combined with
+`resample`, and defaults to 100 entries (maximum 1000). The continuation helper follows the opaque
+link and preserves all its filters.
 
 ```java
 LivePaperEquityQuery equityQuery = LivePaperEquityQuery.builder()
         .currency("USDT")
+        .instrument("BTC/USDT")
+        .measure(LivePaperEquityCurve.MeasureEnum.TOTAL_PNL)
         .sinceMs(startedAtMs)
         .limit(100)
         .build();
-LivePaperEquityPage equity = qts.getLiveRunPaperEquity(paperRun.getRunId(), equityQuery);
-equity.getPoints().forEach(point -> System.out.println(point.getEventTsMs() + " " + point.getEquity()));
+LivePaperEquityCurve equity = qts.getLiveRunPaperEquity(paperRun.getRunId(), equityQuery);
+equity.getPoints().forEach(point -> System.out.println(point.getTimestamp() + " " + point.getEquity()));
 qts.getNextLiveRunPaperEquity(paperRun.getRunId(), equity)
         .ifPresent(next -> next.getPoints().forEach(System.out::println));
 ```
+
+Without `instrument`, the curve is one account's equity, already including marked open positions;
+`currency` selects a quote-currency account and can be omitted only for a single account. With an
+instrument in the default currency-account mode, the curve is that instrument's cumulative PnL:
+`REALISED_PNL` (default) or `TOTAL_PNL` (realised plus marked unrealised PnL). In instrument-account
+mode, selecting `instrument` reads that isolated account's equity curve instead; `measure` is not
+applicable there. `sinceMs` is inclusive; a `cursor` takes precedence over it.
 
 The same methods are available on `AuthenticatedClient`, where each request participates in
 refresh-on-401. Paper routes follow the run's access rule: its owner, or any caller when visibility

@@ -1,6 +1,6 @@
 # API coverage
 
-OpenAPI **0.128.37** and AsyncAPI **0.3.0**. This table maps every REST operation to its generated
+OpenAPI **0.128.46** and AsyncAPI **0.3.0**. This table maps every REST operation to its generated
 client and SDK entry point. Workflow stages have no standalone high-level method: the SDK owns
 their temporary identifiers, polling and cancellation. The generated client remains available
 when an application needs those lower-level calls directly.

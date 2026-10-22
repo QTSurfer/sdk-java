@@ -50,7 +50,11 @@ when it is `FAILED`.
 
 For CEX history, including hours older than the seven-day direct-download window, select `CEX`
 and provide the `cex` block. `exchange` must be a CEX id from `getExchanges()`; `spot` is the only
-import segment today. `dataType` selects `ticker` or `klines`, and becomes the dataset type.
+import segment today. `dataType` selects `ticker` or `klines`, and becomes the type for a CEX
+import. For uploads, the version's type is inferred from its rows when ingest reaches `READY`:
+order-book rows are `ticker`, complete OHLC rows without an order book are `klines`, and ambiguous
+data defaults to `ticker`. Kline backtests over `exchangeId: user` require a ready dataset version
+whose type is `klines`; prepare rejects other types with `400` before queuing a run.
 
 ```java
 import com.qtsurfer.api.client.model.DatasetImportCexRequest;

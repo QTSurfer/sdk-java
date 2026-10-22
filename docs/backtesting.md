@@ -10,6 +10,11 @@ Omission selects `1s`. For a dataset, omission uses its own cadence; a requested
 equal or coarser exact multiple. DEX venues are not direct backtest sources: import history as a
 dataset first, then use `exchangeId=user`.
 
+A kline backtest over `exchangeId: user` requires the selected ready dataset version to have
+`type=klines`; its stored cadence or a coarser exact multiple is used. Prepare rejects other data
+types with `400` before queueing. Upload datasets are classified from their rows when ingest reaches
+`READY`, so inspect the resulting `Dataset.type` rather than assuming every upload is a ticker.
+
 `executeBacktest(request)` compiles the source, prepares the requested window, submits execution, polls
 both asynchronous stages, and completes with `ResultMap`. Polling uses Failsafe exponential backoff
 and optional stage timeouts.

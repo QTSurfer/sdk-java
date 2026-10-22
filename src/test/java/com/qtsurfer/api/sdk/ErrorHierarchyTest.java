@@ -2,6 +2,7 @@ package com.qtsurfer.api.sdk;
 
 import com.qtsurfer.api.sdk.errors.QTSCanceledError;
 import com.qtsurfer.api.sdk.errors.QTSError;
+import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.sdk.errors.QTSExecutionError;
 import com.qtsurfer.api.sdk.errors.QTSPreparationError;
 import com.qtsurfer.api.sdk.errors.QTSStrategyCompileError;
@@ -36,5 +37,20 @@ class ErrorHierarchyTest {
         assertFalse(err instanceof QTSStrategyCompileError);
         assertFalse(err instanceof QTSTimeoutError);
         assertFalse(err instanceof QTSCanceledError);
+    }
+
+    @Test
+    void exposesRequiredScopeAndRetryabilityFromTypedApiErrors() {
+        QTSError scopeError = new QTSError("forbidden", new ApiException(403, "Forbidden", null,
+                "{\"code\":\"insufficient_scope\",\"message\":\"Missing grant\","
+                        + "\"required\":\"datasets:write\"}"));
+        assertEquals("datasets:write", scopeError.getRequiredScope().orElseThrow());
+        assertEquals("forbidden (required scope: datasets:write)", scopeError.getMessage());
+        assertEquals("insufficient_scope", scopeError.getInsufficientScopeError().orElseThrow()
+                .getCode().getValue());
+
+        QTSError retryableError = new QTSError("unavailable", new ApiException(503, "Unavailable", null,
+                "{\"code\":503,\"message\":\"Try again\",\"retryable\":true}"));
+        assertEquals(true, retryableError.getRetryable().orElseThrow());
     }
 }

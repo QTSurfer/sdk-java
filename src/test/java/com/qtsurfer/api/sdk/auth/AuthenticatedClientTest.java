@@ -153,8 +153,11 @@ class AuthenticatedClientTest {
                 ctype = "application/json";
             } else if (path.endsWith("/paper/equity")) {
                 status = 200;
-                body = ("{\"points\":[],\"_links\":{\"next\":{\"href\":"
-                        + "\"/v1/live/run-1/paper/equity?cursor=next-equity&currency=USDT&limit=3\"}}}")
+                body = ("{\"meta\":{\"inputPointCount\":0,\"outputPointCount\":0,"
+                        + "\"resampled\":false,\"differential\":false,\"outMode\":\"ARRAY\"},"
+                        + "\"points\":[],\"currency\":\"USDT\",\"measure\":\"equity\",\"gaps\":[],"
+                        + "\"_links\":{\"next\":{\"href\":"
+                        + "\"/v1/live/run-1/paper/equity?cursor=next-equity&currency=USDT&instrument=BTC%2FUSDT&measure=totalPnl&sinceMs=100&outMode=SHORT&differential=true&limit=3\"}}}")
                         .getBytes(StandardCharsets.UTF_8);
                 ctype = "application/json";
             } else if (path.endsWith("/paper")) {
@@ -250,6 +253,11 @@ class AuthenticatedClientTest {
         assertEquals("run-1", session.getLiveRunPaper("run-1").getRunId());
         var equity = session.getLiveRunPaperEquity("run-1", LivePaperEquityQuery.builder()
                 .currency("USDT")
+                .instrument("BTC/USDT")
+                .measure(com.qtsurfer.api.client.model.LivePaperEquityCurve.MeasureEnum.TOTAL_PNL)
+                .sinceMs(100L)
+                .outMode(com.qtsurfer.api.client.model.EquityCurveOutMode.SHORT)
+                .differential(true)
                 .limit(3)
                 .build());
         assertTrue(session.getNextLiveRunPaperEquity("run-1", equity).isPresent());
@@ -263,7 +271,10 @@ class AuthenticatedClientTest {
         assertTrue(session.getNextLiveSignals("run-1", signals).isPresent());
 
         assertTrue(requests.stream().anyMatch(request -> request.path().endsWith("/paper/equity")
-                && request.query().contains("currency=USDT") && request.query().contains("limit=3")));
+                && request.query().contains("currency=USDT") && request.query().contains("limit=3")
+                && request.query().contains("instrument=BTC%2FUSDT")
+                && request.query().contains("measure=totalPnl")
+                && request.query().contains("differential=true")));
         assertTrue(requests.stream().anyMatch(request -> request.path().endsWith("/signals")
                 && request.query().contains("type=paper") && request.query().contains("instrument=ETH%2FUSDT")));
         assertTrue(requests.stream().filter(request -> request.path().endsWith("/paper")

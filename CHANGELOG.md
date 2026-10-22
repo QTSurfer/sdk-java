@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.34.0] — 2026-10-23
+
+### Added ✨
+
+- Expose the required scope from typed `403 insufficient_scope` errors and the API's `retryable`
+  flag on structured errors.
+- Read paper-equity curves in the shared equity-curve shape, including compact output, resampling,
+  differential encoding, instrument-level realised/total PnL and opt-in paging.
+- Configure paper runs with one account per instrument and inspect marked positions and PnL.
+
+### Changed 🔄
+
+- Adopt API client 0.25.0 (OpenAPI 0.128.46): kline backtests accept ready user datasets, and
+  uploaded dataset types are resolved when ingest reaches `READY`.
+
 ## [0.33.0] — 2026-10-17
 
 ### Added ✨
