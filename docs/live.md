@@ -130,7 +130,7 @@ snapshot.getAccounts().forEach(account -> System.out.printf(
 sets both buy/sell rates unless overridden; `feeLeg` defaults to `RECEIVED` (`QUOTE` and `BASE` are
 also accepted); `percentAmountToLock` defaults to the strategy setting or 10% of remaining free
 balance; `output` defaults to `SEPARATE`. Each quote currency gets a separate account. When `output`
-is `MIX`, paper events are also written into retained signals. See the [API paper-trading guide](https://qtsurfer.github.io/docs/live_paper.html)
+is `MIX`, paper events are also written into retained signals. See the [API paper-trading guide](https://www.qtsurfer.com/docs/developers/api/live_paper)
 for economics, account semantics, and signal event shapes.
 
 The authenticated session exposes the same methods and retries once on `401`:

@@ -103,7 +103,7 @@ whose query parameters are credentials.
 CSV uploads must have a header and `timestamp` and `close` columns. Parquet uploads are accepted
 as-is. Timestamp format and cadence are discovered at ingest. A ready dataset's `dataUrl` and
 `dataFormat` identify the stored downloadable representation; inspect `dataFormat` rather than
-assuming it matches the uploaded file. See the API's [dataset format reference](https://qtsurfer.github.io/docs/datasets.html)
+assuming it matches the uploaded file. See the API's [dataset format reference](https://www.qtsurfer.com/docs/developers/api/datasets)
 for the optional columns and validation rules.
 
 ## Wait for ingest

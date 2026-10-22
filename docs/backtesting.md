@@ -92,7 +92,7 @@ Read the returned curve according to `curve.getMeta().getOutMode()`, not the req
 platform may select a compact representation. `ARRAY` supplies `getPoints()`; `SHORT` supplies
 parallel `getTimestamps()` and `getEquities()` lists. The complete shared contract — transforms,
 differential decoding, metadata, and the meaning of equity — is in the API's [equity-curve
-guide](https://qtsurfer.github.io/docs/equity_curves.html).
+guide](https://www.qtsurfer.com/docs/developers/api/equity_curves).
 
 Sweep rows retain curves only when requested. Configure retention with `EquityCurveRequest` and
 read a retained trial with `getSweepRunEquityCurve`:

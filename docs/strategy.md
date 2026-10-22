@@ -4,7 +4,7 @@ Examples assume an authenticated `QTSurfer qts`; see [auth.md](auth.md) for setu
 
 This guide covers registering and validating source through the SDK. For the Java strategy itself —
 indicators, `emitBuy`/`emitSell`, information signals, order configuration, and chart metadata —
-use the API's [Coding Java strategies](https://qtsurfer.github.io/docs/strategy_coding.html) guide.
+use the API's [Coding Java strategies](https://www.qtsurfer.com/docs/developers/api/strategy_coding) guide.
 For agent-assisted authoring, install the maintained
 [`qtsurfer-java-strategy`](https://github.com/QTSurfer/strategy-skills) skill.
 

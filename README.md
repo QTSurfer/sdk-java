@@ -83,9 +83,9 @@ The README is an entry point; the source documentation follows the API's functio
 | Authentication | [docs/auth.md](docs/auth.md) |
 | Exchanges, instruments, and downloads | [docs/market_data.md](docs/market_data.md) |
 | Backtests, parameter sweeps, and equity curves | [docs/backtesting.md](docs/backtesting.md) |
-| Equity-curve format and transforms | [API guide](https://qtsurfer.github.io/docs/equity_curves.html) |
+| Equity-curve format and transforms | [API guide](https://www.qtsurfer.com/docs/developers/api/equity_curves) |
 | Strategies and validation | [docs/strategy.md](docs/strategy.md) |
-| Writing Java strategy source | [API guide](https://qtsurfer.github.io/docs/strategy_coding.html) |
+| Writing Java strategy source | [API guide](https://www.qtsurfer.com/docs/developers/api/strategy_coding) |
 | Dataset uploads and external imports | [docs/datasets.md](docs/datasets.md) |
 | Account limits and storage usage | [docs/account.md](docs/account.md) |
 | Live execution, WebSocket signals, paper simulation, and retained signals | [docs/live.md](docs/live.md) |
