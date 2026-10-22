@@ -71,7 +71,7 @@ This entry point does not exchange an API key or refresh the supplied token.
 resource names to action lists, for example `{"backtests":["read","write","execute"],
 "exchanges":["read"]}`. Names are lower case; a key with no scopes has `{}`. Scopes are reported
 but the API does not yet reject an operation for a missing scope. Do not infer enforcement from
-the presence of this map. See the [API auth guide](https://qtsurfer.github.io/docs/auth.html) for
+the presence of this map. See the [API auth guide](https://www.qtsurfer.com/docs/developers/api/auth) for
 resource and action definitions.
 
 Custom token stores must preserve the nested map when serializing `AuthTokenResponse`. If an old
