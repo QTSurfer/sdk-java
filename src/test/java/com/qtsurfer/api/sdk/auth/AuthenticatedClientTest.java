@@ -532,6 +532,20 @@ class AuthenticatedClientTest {
         assertEquals("Bearer jwt-2", retried.authorization());
     }
 
+    @Test
+    void backtestResultOfAKlineRunReadsTheKlineRoute() {
+        tokenResponses.add(jwt("jwt-1", "free"));
+        resultStatuses.add(200);
+
+        AuthenticatedClient session = QTSurfer.authenticate("ak", opts());
+        BacktestOutcome outcome = session.getBacktestResult(
+                "user", com.qtsurfer.api.client.model.DataSourceType.KLINE, "exec-k");
+
+        assertInstanceOf(BacktestOutcome.Completed.class, outcome);
+        RequestRecord read = requests.stream().filter(r -> r.path().contains("/execute/")).findFirst().orElseThrow();
+        assertEquals("/v1/backtest/user/kline/execute/exec-k", read.path());
+    }
+
     /** The session the MCP server uses must read a result whose echoed params hold a number or a boolean. */
     @Test
     void backtestResultReadsNumericAndBooleanParamsEchoedBack() {

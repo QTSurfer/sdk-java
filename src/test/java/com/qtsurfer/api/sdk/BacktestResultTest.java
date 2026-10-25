@@ -85,6 +85,19 @@ class BacktestResultTest {
         assertEquals(7L, result.getTotalTrades());
     }
 
+    @Test
+    void getBacktestResultOfAKlineRunReadsTheKlineRoute() {
+        responseStatus.set(200);
+        responseBody.set("""
+                {"state":{"status":"Completed"},"results":{"instrument":"BTC/USDT","totalTrades":20}}""");
+
+        BacktestOutcome outcome = qts.getBacktestResult(
+                "user", com.qtsurfer.api.client.model.DataSourceType.KLINE, "exec-k");
+
+        assertEquals("/backtest/user/kline/execute/exec-k", exchanges.get(0).getRequestURI().getPath());
+        assertEquals(20L, assertInstanceOf(BacktestOutcome.Completed.class, outcome).results().getTotalTrades());
+    }
+
     /**
      * A run started with per-run {@code params} comes back with them echoed. A number or a boolean
      * among them used to make the whole result unreadable ("N classes match result, expected 1").

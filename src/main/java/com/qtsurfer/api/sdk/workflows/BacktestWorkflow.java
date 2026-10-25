@@ -95,7 +95,7 @@ public final class BacktestWorkflow {
 
             emit(safeOpts.onProgress(), new BacktestProgress(BacktestStage.EXECUTING, null));
             AcceptedJob accepted = call(
-                    () -> backtestingApi.executeBacktest(req.exchangeId(), TICKER, buildExecuteBody(req, strategy, prepareJobId)),
+                    () -> backtestingApi.executeBacktest(req.exchangeId(), req.type(), buildExecuteBody(req, strategy, prepareJobId)),
                     "Execute submission failed",
                     QTSExecutionError::new);
             if (accepted == null || accepted.getJobId() == null) {
@@ -136,16 +136,32 @@ public final class BacktestWorkflow {
      *                  about an execution any more
      */
     public BacktestOutcome readResult(String exchangeId, String jobId) {
-        return BacktestOutcomes.of(readJobResult(exchangeId, jobId, QTSError::new));
+        return readResult(exchangeId, TICKER, jobId);
+    }
+
+    /**
+     * {@link #readResult(String, String)} for a run of the given data type: a run is addressed by
+     * its exchange, its type and its job id, and a kline run is not found under the ticker route.
+     */
+    public BacktestOutcome readResult(String exchangeId, DataSourceType type, String jobId) {
+        return BacktestOutcomes.of(readJobResult(exchangeId, type, jobId, QTSError::new));
     }
 
     /** Read a retained sweep trial curve without starting or polling a sweep. */
     public EquityCurveResult getSweepRunEquityCurve(
             String exchangeId, String requestId, String sweepId, int runIx,
             EquityCurveOutMode outMode, Integer resample, Boolean differential) {
+        return getSweepRunEquityCurve(
+                exchangeId, TICKER, requestId, sweepId, runIx, outMode, resample, differential);
+    }
+
+    /** {@link #getSweepRunEquityCurve(String, String, String, int, EquityCurveOutMode, Integer, Boolean)} for a sweep of the given data type. */
+    public EquityCurveResult getSweepRunEquityCurve(
+            String exchangeId, DataSourceType type, String requestId, String sweepId, int runIx,
+            EquityCurveOutMode outMode, Integer resample, Boolean differential) {
         return call(
                 () -> backtestingApi.getSweepRunEquityCurve(
-                        exchangeId, TICKER, requestId, sweepId, runIx,
+                        exchangeId, type, requestId, sweepId, runIx,
                         outMode, resample, differential),
                 "Sweep equity curve request failed",
                 QTSError::new);
@@ -165,10 +181,11 @@ public final class BacktestWorkflow {
      */
     private BacktestJobResult readJobResult(
             String exchangeId,
+            DataSourceType type,
             String jobId,
             java.util.function.BiFunction<String, Throwable, ? extends QTSError> errorCtor) {
         return call(
-                () -> backtestingApi.getBacktestResult(exchangeId, TICKER, jobId),
+                () -> backtestingApi.getBacktestResult(exchangeId, type, jobId),
                 "Execution result request failed",
                 errorCtor);
     }
@@ -229,7 +246,7 @@ public final class BacktestWorkflow {
         Runnable cancelHook = () -> {
             resultFuture.cancel(true);
             try {
-                backtestingApi.cancelBacktest(req.exchangeId(), TICKER, executeJobId);
+                backtestingApi.cancelBacktest(req.exchangeId(), req.type(), executeJobId);
             } catch (Exception ignore) {
                 // Best effort
             }
@@ -273,7 +290,7 @@ public final class BacktestWorkflow {
                 BacktestStage.EXECUTING,
                 opts,
                 percent -> progressSink.accept(new BacktestProgress(BacktestStage.EXECUTING, percent)),
-                () -> readJobResult(req.exchangeId(), executeJobId, QTSExecutionError::new),
+                () -> readJobResult(req.exchangeId(), req.type(), executeJobId, QTSExecutionError::new),
                 r -> StatusNormalizer.normalize(statusOf(r)) == Normalized.IN_PROGRESS);
 
         Normalized norm = StatusNormalizer.normalize(statusOf(finalResult));
@@ -322,7 +339,7 @@ public final class BacktestWorkflow {
             body.datasetVersionId(req.datasetVersionId());
         }
         return Preparation.prepare(
-                backtestingApi, req.exchangeId(), TICKER, body,
+                backtestingApi, req.exchangeId(), req.type(), body,
                 opts.pollInterval(), opts.maxPollInterval(), opts.timeout(),
                 percent -> emit(opts.onProgress(), new BacktestProgress(BacktestStage.PREPARING, percent)),
                 // Surface the backend's coverage ratio for the prepared window (spec 0.98.0) on the

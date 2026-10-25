@@ -212,6 +212,26 @@ class SweepTest {
         assertFalse(values.get("values").get(1).asBoolean());
     }
 
+    /** A kline sweep is prepared, submitted and read on the kline route, never on the ticker one. */
+    @Test
+    void aKlineSweepUsesTheKlineRouteEverywhere() throws Exception {
+        sweepResults.add(completed());
+
+        qts.sweep(request().type(com.qtsurfer.api.client.model.DataSourceType.KLINE).build(), fastOpts().build())
+                .get(10, TimeUnit.SECONDS)
+                .await().get(10, TimeUnit.SECONDS);
+
+        assertEquals("/backtest/binance/kline/prepare", call("POST", "/prepare").path());
+        assertEquals("/backtest/binance/kline/executeSweep/prep-1", call("POST", "/executeSweep/prep-1").path());
+        synchronized (recorded) {
+            for (Recorded r : recorded) {
+                if (r.path().startsWith("/backtest/")) {
+                    assertTrue(r.path().startsWith("/backtest/binance/kline/"), "off the kline route: " + r.path());
+                }
+            }
+        }
+    }
+
     /** Preparation runs first, and the sweep is addressed by the dataset it produced. */
     @Test
     void preparesTheDatasetBeforeSubmitting() throws Exception {

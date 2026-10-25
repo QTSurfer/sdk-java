@@ -1,6 +1,7 @@
 package com.qtsurfer.api.sdk;
 
 import com.qtsurfer.api.client.model.ExecuteSweepAccepted;
+import com.qtsurfer.api.client.model.DataSourceType;
 import com.qtsurfer.api.client.model.EquityCurveRequest;
 
 import java.util.LinkedHashMap;
@@ -67,6 +68,8 @@ import java.util.Objects;
  *                         {@code null} keeps the platform defaults
  * @param storeSignals     when {@code Boolean.TRUE}, retain emitted signals for every trial;
  *                         {@code null} keeps the platform default
+ * @param type             the kind of data the strategy reads, {@link DataSourceType#TICKER} (trades) or
+ *                         {@link DataSourceType#KLINE} (candles); {@code null} means {@code TICKER}
  */
 public record SweepRequest(
         String strategy,
@@ -83,14 +86,23 @@ public record SweepRequest(
         String datasetId,
         String datasetVersionId,
         EquityCurveRequest equityCurve,
-        Boolean storeSignals
+        Boolean storeSignals,
+        DataSourceType type
 ) {
+    /** Compatibility constructor for callers that predate {@code type}: a ticker sweep. */
+    public SweepRequest(String strategy, String exchangeId, String instrument, String from, String to,
+                        Map<String, ParamAxis> params, SweepSampler sampler, Integer samples, Long seed,
+                        SweepObjective objective, WalkForwardSpec walkForward, String datasetId,
+                        String datasetVersionId, EquityCurveRequest equityCurve, Boolean storeSignals) {
+        this(strategy, exchangeId, instrument, from, to, params, sampler, samples, seed, objective,
+                walkForward, datasetId, datasetVersionId, equityCurve, storeSignals, null);
+    }
     public SweepRequest(String strategy, String exchangeId, String instrument, String from, String to,
                         Map<String, ParamAxis> params, SweepSampler sampler, Integer samples, Long seed,
                         SweepObjective objective, WalkForwardSpec walkForward, String datasetId,
                         String datasetVersionId) {
         this(strategy, exchangeId, instrument, from, to, params, sampler, samples, seed, objective,
-                walkForward, datasetId, datasetVersionId, null, null);
+                walkForward, datasetId, datasetVersionId, null, null, null);
     }
     /**
      * @throws NullPointerException     when a required field is missing, or when neither
@@ -118,6 +130,7 @@ public record SweepRequest(
             throw new IllegalArgumentException("params must hold at least one axis");
         }
         params = Map.copyOf(params);
+        type = type == null ? DataSourceType.TICKER : type;
     }
 
     /**
@@ -144,6 +157,7 @@ public record SweepRequest(
         private String datasetVersionId;
         private EquityCurveRequest equityCurve;
         private Boolean storeSignals;
+        private DataSourceType type;
 
         /**
          * @param strategy strategy source code (Java)
@@ -268,6 +282,9 @@ public record SweepRequest(
         /** Request storage of emitted signals for every sweep trial. */
         public Builder storeSignals(boolean storeSignals) { this.storeSignals = storeSignals; return this; }
 
+        /** The kind of data the strategy reads: {@code TICKER} (the default) or {@code KLINE}. */
+        public Builder type(DataSourceType type) { this.type = type; return this; }
+
         /**
          * Build the request.
          *
@@ -277,7 +294,7 @@ public record SweepRequest(
             return new SweepRequest(
                     strategy, exchangeId, instrument, from, to,
                     params, sampler, samples, seed, objective, walkForward,
-                    datasetId, datasetVersionId, equityCurve, storeSignals);
+                    datasetId, datasetVersionId, equityCurve, storeSignals, type);
         }
     }
 }

@@ -15,6 +15,23 @@ A kline backtest over `exchangeId: user` requires the selected ready dataset ver
 types with `400` before queueing. Upload datasets are classified from their rows when ingest reaches
 `READY`, so inspect the resulting `Dataset.type` rather than assuming every upload is a ticker.
 
+A request is a ticker run unless it says otherwise. A strategy that reads candles needs `type(DataSourceType.KLINE)`
+on its `BacktestRequest` (or `SweepRequest`); the type then applies to every stage of the run, preparation,
+execution, polling, cancellation, and the sweep reads. A kline strategy submitted as a ticker run ends `Failed`
+with the platform's reason. To read or cancel a run from another process, address it by its type too:
+`getBacktestResult(exchangeId, DataSourceType.KLINE, jobId)`; the two-argument form reads the ticker route.
+
+```java
+ResultMap result = qts.executeBacktest(BacktestRequest.builder()
+        .strategy(candleStrategy)
+        .exchangeId("user")
+        .datasetId("ds_candles")
+        .from("2026-08-01T00:00:00Z")
+        .to("2026-08-01T03:00:00Z")
+        .type(DataSourceType.KLINE)
+        .build()).join();
+```
+
 `executeBacktest(request)` compiles the source, prepares the requested window, submits execution, polls
 both asynchronous stages, and completes with `ResultMap`. Polling uses Failsafe exponential backoff
 and optional stage timeouts.
