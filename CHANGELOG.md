@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added ✨
+
+- `type` on `BacktestRequest` and `SweepRequest` (`DataSourceType.TICKER`, the default, or `KLINE`). A strategy
+  that reads candles can now be backtested and swept from Java: preparation, execution, polling, cancellation
+  and the sweep reads use the requested route. Until now every Java run was prepared as ticker data, so a kline
+  strategy over a klines dataset ended `Failed`. The TypeScript and Python SDKs already took this option.
+- `getBacktestResult(exchangeId, type, jobId)`, `getSweepRunEquityCurve(exchangeId, type, ...)` and
+  `getBoundedSweepRunEquityCurve(exchangeId, type, ...)` on `QTSurfer` and `AuthenticatedClient`: a run is
+  addressed by its exchange, its type and its id, so reading a kline run needs its type. The forms without a
+  type keep reading the ticker route.
+
 ## [0.34.1] — 2026-10-25
 
 ### Fixed 🐛

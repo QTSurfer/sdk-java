@@ -1,5 +1,6 @@
 package com.qtsurfer.api.sdk;
 
+import com.qtsurfer.api.client.model.DataSourceType;
 import com.qtsurfer.api.client.model.EquityCurveOptions;
 import com.qtsurfer.api.client.model.SweepBaseConfig;
 import java.util.LinkedHashMap;
@@ -57,6 +58,10 @@ import java.util.Objects;
  *                         keeps the platform defaults
  * @param params           scalar strategy properties for this run; an empty map keeps every
  *                         declared property at its default
+ * @param type             the kind of data the strategy reads, {@link DataSourceType#TICKER} (trades) or
+ *                         {@link DataSourceType#KLINE} (candles); {@code null} means
+ *                         {@code TICKER}. A strategy that reads candles needs {@code KLINE}, and over a
+ *                         user dataset that dataset's version must hold candles
  */
 public record BacktestRequest(
         String strategy,
@@ -69,8 +74,16 @@ public record BacktestRequest(
         String datasetVersionId,
         EquityCurveOptions equityCurve,
         SweepBaseConfig baseConfig,
-        Map<String, Object> params
+        Map<String, Object> params,
+        DataSourceType type
 ) {
+    /** Compatibility constructor for callers that predate {@code type}: a ticker run. */
+    public BacktestRequest(String strategy, String exchangeId, String instrument, String from, String to,
+                           Boolean storeSignals, String datasetId, String datasetVersionId,
+                           EquityCurveOptions equityCurve, SweepBaseConfig baseConfig, Map<String, Object> params) {
+        this(strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId,
+                equityCurve, baseConfig, params, null);
+    }
     public BacktestRequest(String strategy, String exchangeId, String instrument, String from, String to,
                            Boolean storeSignals, String datasetId, String datasetVersionId) {
         this(strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId,
@@ -99,6 +112,7 @@ public record BacktestRequest(
         Objects.requireNonNull(from, "from");
         Objects.requireNonNull(to, "to");
         params = params == null ? Map.of() : Map.copyOf(params);
+        type = type == null ? DataSourceType.TICKER : type;
         if (params.size() > 64) {
             throw new IllegalArgumentException("params may hold at most 64 properties");
         }
@@ -127,6 +141,7 @@ public record BacktestRequest(
         private EquityCurveOptions equityCurve;
         private SweepBaseConfig baseConfig;
         private final Map<String, Object> params = new LinkedHashMap<>();
+        private DataSourceType type;
 
         public Builder strategy(String strategy) { this.strategy = strategy; return this; }
         public Builder exchangeId(String exchangeId) { this.exchangeId = exchangeId; return this; }
@@ -146,6 +161,11 @@ public record BacktestRequest(
          * @return this builder
          */
         public Builder baseConfig(SweepBaseConfig baseConfig) { this.baseConfig = baseConfig; return this; }
+        /**
+         * @param type the kind of data the strategy reads: {@code TICKER} (the default) or {@code KLINE}
+         * @return this builder
+         */
+        public Builder type(DataSourceType type) { this.type = type; return this; }
         /** Add or replace one scalar strategy property for this run. */
         public Builder param(String name, Object value) {
             this.params.put(Objects.requireNonNull(name, "name"), Objects.requireNonNull(value, "value"));
@@ -161,7 +181,7 @@ public record BacktestRequest(
         public BacktestRequest build() {
             return new BacktestRequest(
                     strategy, exchangeId, instrument, from, to, storeSignals, datasetId, datasetVersionId,
-                    equityCurve, baseConfig, params);
+                    equityCurve, baseConfig, params, type);
         }
     }
 }

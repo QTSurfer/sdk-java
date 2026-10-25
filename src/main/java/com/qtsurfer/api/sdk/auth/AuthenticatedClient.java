@@ -18,6 +18,7 @@ import com.qtsurfer.api.client.model.AccountUsage;
 import com.qtsurfer.api.client.model.AuthTokenResponse;
 import com.qtsurfer.api.client.model.CreateDatasetRequest;
 import com.qtsurfer.api.client.model.Dataset;
+import com.qtsurfer.api.client.model.DataSourceType;
 import com.qtsurfer.api.client.model.DatasetCreated;
 import com.qtsurfer.api.client.model.DatasetImportCreated;
 import com.qtsurfer.api.client.model.DatasetImportRequest;
@@ -640,6 +641,22 @@ public final class AuthenticatedClient {
         return withRefreshOn401(() -> backtestWorkflow.readResult(exchangeId, jobId));
     }
 
+    /**
+     * {@link #getBacktestResult(String, String)} for a run of the given data type. A run is addressed
+     * by its exchange, its type and its job id, so a kline run is not found under the ticker route
+     * the two-argument form reads.
+     *
+     * @param exchangeId exchange the run was submitted against
+     * @param type       {@link DataSourceType#TICKER} or {@link DataSourceType#KLINE}, as the run was submitted
+     * @param jobId      id of the execute job
+     */
+    public BacktestOutcome getBacktestResult(String exchangeId, DataSourceType type, String jobId) {
+        Objects.requireNonNull(exchangeId, "exchangeId");
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(jobId, "jobId");
+        return withRefreshOn401(() -> backtestWorkflow.readResult(exchangeId, type, jobId));
+    }
+
     /** @deprecated Use {@link #getBacktestResult(String, String)}. */
     @Deprecated(forRemoval = false)
     public BacktestOutcome backtestResult(String exchangeId, String jobId) {
@@ -714,6 +731,27 @@ public final class AuthenticatedClient {
         Objects.requireNonNull(sweepId, "sweepId");
         return withRefreshOn401(() -> backtestWorkflow.getSweepRunEquityCurve(
                 exchangeId, requestId, sweepId, runIx, outMode, resample, differential));
+    }
+
+    /** {@link #getSweepRunEquityCurve(String, String, String, int, EquityCurveOutMode, Integer, Boolean)} for a sweep of the given data type. */
+    public EquityCurveResult getSweepRunEquityCurve(
+            String exchangeId, DataSourceType type, String requestId, String sweepId, int runIx,
+            EquityCurveOutMode outMode, Integer resample, Boolean differential) {
+        Objects.requireNonNull(exchangeId, "exchangeId");
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(requestId, "requestId");
+        Objects.requireNonNull(sweepId, "sweepId");
+        return withRefreshOn401(() -> backtestWorkflow.getSweepRunEquityCurve(
+                exchangeId, type, requestId, sweepId, runIx, outMode, resample, differential));
+    }
+
+    /** {@link #getBoundedSweepRunEquityCurve(String, String, String, int, Integer)} for a sweep of the given data type. */
+    public BoundedEquityCurve getBoundedSweepRunEquityCurve(
+            String exchangeId, DataSourceType type, String requestId, String sweepId, int runIx, Integer maxResample) {
+        int limit = maxResample == null ? BoundedEquityCurve.DEFAULT_MAX_RESAMPLE : maxResample;
+        BoundedEquityCurve.validateMaxResample(limit);
+        return BoundedEquityCurve.decode(getSweepRunEquityCurve(
+                exchangeId, type, requestId, sweepId, runIx, EquityCurveOutMode.SHORT, limit, true), limit);
     }
 
     /** Read a retained sweep curve as normalized absolute points with a bounded server request. */

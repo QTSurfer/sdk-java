@@ -44,6 +44,7 @@ import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -113,6 +114,47 @@ class BacktestWorkflowTest {
         verify(backtestingApi).executeBacktest(eq("binance"), eq(DataSourceType.TICKER), execBody.capture());
         assertEquals("prep-1", execBody.getValue().getPrepareJobId());
         assertEquals("strategy-abc", execBody.getValue().getStrategyId());
+    }
+
+    /** A kline run is prepared, executed, polled and read on the kline route, and never on the ticker one. */
+    @Test
+    void aKlineRequestPreparesExecutesAndReadsOnTheKlineRoute() throws Exception {
+        when(strategyClient.compile("class S {}")).thenReturn("strategy-abc");
+        when(backtestingApi.prepareBacktest(eq("user"), eq(DataSourceType.KLINE), any(PrepareRequest.class)))
+                .thenReturn(new AcceptedJob().jobId("prep-1"));
+        when(backtestingApi.getPrepareStatus("user", DataSourceType.KLINE, "prep-1"))
+                .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED));
+        when(backtestingApi.executeBacktest(eq("user"), eq(DataSourceType.KLINE), any(ExecuteBacktestRequest.class)))
+                .thenReturn(new AcceptedJob().jobId("exec-1"));
+        when(backtestingApi.getBacktestResult("user", DataSourceType.KLINE, "exec-1"))
+                .thenReturn(new BacktestJobResult().state(new JobState().status(JobState.StatusEnum.COMPLETED))
+                        .results(new ResultMap().strategyId("strategy-abc")));
+
+        BacktestRequest request = BacktestRequest.builder()
+                .strategy("class S {}").exchangeId("user").datasetId("ds_1")
+                .from("2026-08-01T00:00:00Z").to("2026-08-01T03:00:00Z")
+                .type(DataSourceType.KLINE).build();
+        ResultMap result = workflow.runFull(request, fastOpts()).get(10, TimeUnit.SECONDS);
+
+        assertEquals("strategy-abc", result.getStrategyId());
+        verify(backtestingApi, never()).prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class));
+        verify(backtestingApi, never()).executeBacktest(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestRequest.class));
+        verify(backtestingApi, never()).getBacktestResult(anyString(), eq(DataSourceType.TICKER), anyString());
+    }
+
+    /** A run is addressed by its exchange, its type and its job id. */
+    @Test
+    void readResultAddressesARunByItsType() throws Exception {
+        BacktestJobResult done = new BacktestJobResult()
+                .state(new JobState().status(JobState.StatusEnum.COMPLETED)).results(new ResultMap());
+        when(backtestingApi.getBacktestResult("user", DataSourceType.KLINE, "exec-k")).thenReturn(done);
+        when(backtestingApi.getBacktestResult("binance", DataSourceType.TICKER, "exec-t")).thenReturn(done);
+
+        assertInstanceOf(com.qtsurfer.api.sdk.BacktestOutcome.Completed.class,
+                workflow.readResult("user", DataSourceType.KLINE, "exec-k"));
+        // The form without a type is a ticker read.
+        assertInstanceOf(com.qtsurfer.api.sdk.BacktestOutcome.Completed.class,
+                workflow.readResult("binance", "exec-t"));
     }
 
     @Test

@@ -58,7 +58,6 @@ import java.util.function.Consumer;
 public final class SweepWorkflow {
 
     private static final Logger log = LoggerFactory.getLogger(Sweep.class);
-    private static final DataSourceType TICKER = DataSourceType.TICKER;
 
     private final StrategyCompileClient strategyClient;
     private final BacktestingApi backtestingApi;
@@ -102,7 +101,7 @@ public final class SweepWorkflow {
             emit(safeOpts.onProgress(), new SweepProgressEvent(BacktestStage.EXECUTING, null));
             ExecuteSweepAccepted accepted = ApiCalls.call(
                     () -> backtestingApi.executeSweep(
-                            req.exchangeId(), TICKER, requestId, buildSweepBody(req, strategyId)),
+                            req.exchangeId(), req.type(), requestId, buildSweepBody(req, strategyId)),
                     "Sweep submission failed",
                     QTSExecutionError::new);
             if (accepted == null || accepted.getSweepId() == null) {
@@ -128,7 +127,7 @@ public final class SweepWorkflow {
             body.datasetVersionId(req.datasetVersionId());
         }
         return Preparation.prepare(
-                backtestingApi, req.exchangeId(), TICKER, body,
+                backtestingApi, req.exchangeId(), req.type(), body,
                 opts.pollInterval(), opts.maxPollInterval(), opts.timeout(),
                 percent -> emit(opts.onProgress(), new SweepProgressEvent(BacktestStage.PREPARING, percent)),
                 // A thinly covered window is about to be scored once per parameter vector, so the
@@ -187,7 +186,7 @@ public final class SweepWorkflow {
         // polling until the platform reports CANCELLED with no shards still in flight.
         Runnable cancelHook = () -> {
             try {
-                backtestingApi.cancelSweep(req.exchangeId(), TICKER, requestId, sweepId);
+                backtestingApi.cancelSweep(req.exchangeId(), req.type(), requestId, sweepId);
             } catch (Exception ignore) {
                 // Best effort
             }
@@ -218,8 +217,8 @@ public final class SweepWorkflow {
         return new Sweep(
                 accepted, requestId, strategyId, resultFuture, publisher, state, cancelHook,
                 (order, ranking) -> readResults(
-                        req.exchangeId(), requestId, sweepId, order, ranking, QTSError::new),
-                objective -> readSensitivity(req.exchangeId(), requestId, sweepId, objective));
+                        req.exchangeId(), req.type(), requestId, sweepId, order, ranking, QTSError::new),
+                objective -> readSensitivity(req.exchangeId(), req.type(), requestId, sweepId, objective));
     }
 
     private ExecuteSweepResult pollSweep(
@@ -232,7 +231,7 @@ public final class SweepWorkflow {
         ExecuteSweepResult finalResult = Polling.poll(
                 BacktestStage.EXECUTING.toString(),
                 opts.pollInterval(), opts.maxPollInterval(), opts.timeout(),
-                () -> readResults(req.exchangeId(), requestId, sweepId,
+                () -> readResults(req.exchangeId(), req.type(), requestId, sweepId,
                         opts.order(), opts.ranking(), QTSExecutionError::new),
                 SweepWorkflow::stillRunning,
                 r -> progressSink.accept(new SweepProgressEvent(
@@ -261,12 +260,12 @@ public final class SweepWorkflow {
      * {@link #readSensitivity} has always used for the sibling read.
      */
     private ExecuteSweepResult readResults(
-            String exchangeId, String requestId, String sweepId,
+            String exchangeId, DataSourceType type, String requestId, String sweepId,
             SweepOrder order, SweepRanking ranking,
             java.util.function.BiFunction<String, Throwable, ? extends QTSError> errorCtor) {
         return ApiCalls.call(
                 () -> backtestingApi.getSweepResult(
-                        exchangeId, TICKER, requestId, sweepId, null,
+                        exchangeId, type, requestId, sweepId, null,
                         order != null ? order.wire() : null,
                         ranking != null ? ranking.wire() : null),
                 "Sweep result request failed",
@@ -274,10 +273,10 @@ public final class SweepWorkflow {
     }
 
     private SweepSensitivity readSensitivity(
-            String exchangeId, String requestId, String sweepId, SweepObjective objective) {
+            String exchangeId, DataSourceType type, String requestId, String sweepId, SweepObjective objective) {
         return ApiCalls.call(
                 () -> backtestingApi.getSweepSensitivity(
-                        exchangeId, TICKER, requestId, sweepId,
+                        exchangeId, type, requestId, sweepId,
                         objective != null ? objective.wire() : null),
                 "Sweep sensitivity request failed",
                 QTSError::new);
