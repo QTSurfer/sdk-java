@@ -53,6 +53,7 @@ import com.qtsurfer.api.sdk.auth.AuthOptions;
 import com.qtsurfer.api.sdk.auth.AuthenticatedClient;
 import com.qtsurfer.api.sdk.errors.QTSDownloadError;
 import com.qtsurfer.api.sdk.errors.QTSError;
+import com.qtsurfer.api.sdk.internal.ApiClients;
 import com.qtsurfer.api.sdk.internal.DatasetUploads;
 import com.qtsurfer.api.sdk.internal.HttpStrategyCompileClient;
 import com.qtsurfer.api.sdk.internal.LivePageLinks;
@@ -1230,7 +1231,7 @@ public final class QTSurfer {
 
         public QTSurfer build() {
             QTSurferOptions opts = delegate.build();
-            ApiClient apiClient = new ApiClient();
+            ApiClient apiClient = ApiClients.create();
             apiClient.updateBaseUri(opts.baseUrl().toString());
             if (opts.token() != null) {
                 String bearer = "Bearer " + opts.token();

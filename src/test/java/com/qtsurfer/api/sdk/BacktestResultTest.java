@@ -86,6 +86,28 @@ class BacktestResultTest {
     }
 
     /**
+     * A run started with per-run {@code params} comes back with them echoed. A number or a boolean
+     * among them used to make the whole result unreadable ("N classes match result, expected 1").
+     */
+    @Test
+    void aRunGivenNumericAndBooleanParamsIsReadable() {
+        responseStatus.set(200);
+        responseBody.set("""
+                {"state":{"status":"Completed"},"results":{"instrument":"BTC/USDT","totalTrades":72,\
+                "params":{"cycle.seconds":20,"threshold":0.5,"enabled":true,"label":"x"}}}""");
+
+        BacktestOutcome outcome = qts.backtestResult("binance", "exec-1");
+
+        ResultMap result = assertInstanceOf(BacktestOutcome.Completed.class, outcome).results();
+        assertEquals(72L, result.getTotalTrades());
+        assertEquals(4, result.getParams().size());
+        assertEquals(0, new java.math.BigDecimal("20")
+                .compareTo((java.math.BigDecimal) result.getParams().get("cycle.seconds").getActualInstance()));
+        assertEquals(Boolean.TRUE, result.getParams().get("enabled").getActualInstance());
+        assertEquals("x", result.getParams().get("label").getActualInstance());
+    }
+
+    /**
      * The reason this returns a sealed outcome rather than the numbers alone.
      * A run that failed is the answer to "what happened to this job?", so it
      * arrives as a value — with the platform's account of why — and not as the

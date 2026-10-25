@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed 🐛
+
+- A backtest started with a numeric or boolean per-run `params` value is readable again. The generated
+  client decided which member of the `number | string | boolean` value a JSON scalar was by requiring
+  exactly one to accept it, but its mapper coerced scalars between JSON types, so every number and boolean
+  matched two or three members and the result failed with "Failed deserialization for
+  ScalarStrategyParamValue: N classes match result, expected 1". The platform had run the job; only its
+  result could not be read. Scalar coercion is now off in the client both `QTSurfer` and `authenticate(...)`
+  build.
+
 ## [0.34.0] — 2026-10-23
 
 ### Added ✨

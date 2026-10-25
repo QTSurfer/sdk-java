@@ -49,6 +49,8 @@ class AuthenticatedClientTest {
     private final AtomicInteger validateCalls = new AtomicInteger();
     private final List<Integer> resultStatuses = new ArrayList<>();
     private final AtomicInteger resultCalls = new AtomicInteger();
+    private final AtomicReference<String> resultBody = new AtomicReference<>(
+            "{\"state\":{\"status\":\"Completed\"},\"results\":{\"pnlTotal\":42.5}}");
     private final List<Integer> compileStatuses = new ArrayList<>();
     private final AtomicInteger compileCalls = new AtomicInteger();
 
@@ -105,7 +107,7 @@ class AuthenticatedClientTest {
                         ? resultStatuses.get(idx)
                         : resultStatuses.get(resultStatuses.size() - 1);
                 body = (status == 200
-                        ? "{\"state\":{\"status\":\"Completed\"},\"results\":{\"pnlTotal\":42.5}}"
+                        ? resultBody.get()
                         : "{\"error\":\"" + status + "\"}").getBytes(StandardCharsets.UTF_8);
                 ctype = "application/json";
             } else if (path.endsWith("/strategy")) {
@@ -528,6 +530,25 @@ class AuthenticatedClientTest {
         assertEquals("GET", retried.method());
         assertEquals("/v1/backtest/binance/ticker/execute/exec-1", retried.path());
         assertEquals("Bearer jwt-2", retried.authorization());
+    }
+
+    /** The session the MCP server uses must read a result whose echoed params hold a number or a boolean. */
+    @Test
+    void backtestResultReadsNumericAndBooleanParamsEchoedBack() {
+        tokenResponses.add(jwt("jwt-1", "free"));
+        resultStatuses.add(200);
+        resultBody.set("""
+                {"state":{"status":"Completed"},"results":{"totalTrades":72,\
+                "params":{"cycle.seconds":20,"enabled":true,"label":"x"}}}""");
+
+        AuthenticatedClient session = QTSurfer.authenticate("ak", opts());
+        BacktestOutcome outcome = session.backtestResult("binance", "exec-1");
+
+        ResultMap result = assertInstanceOf(BacktestOutcome.Completed.class, outcome).results();
+        assertEquals(72L, result.getTotalTrades());
+        assertEquals(3, result.getParams().size());
+        assertEquals(Boolean.TRUE, result.getParams().get("enabled").getActualInstance());
+        assertEquals("x", result.getParams().get("label").getActualInstance());
     }
 
     @Test
