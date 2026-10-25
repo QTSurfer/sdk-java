@@ -71,6 +71,7 @@ import com.qtsurfer.api.sdk.errors.QTSAuthError;
 import com.qtsurfer.api.sdk.errors.QTSDownloadError;
 import com.qtsurfer.api.sdk.errors.QTSError;
 import com.qtsurfer.api.sdk.internal.ApiCalls;
+import com.qtsurfer.api.sdk.internal.ApiClients;
 import com.qtsurfer.api.sdk.internal.DatasetUploads;
 import com.qtsurfer.api.sdk.internal.LivePageLinks;
 import com.qtsurfer.api.sdk.internal.HttpStrategyCompileClient;
@@ -1414,7 +1415,7 @@ public final class AuthenticatedClient {
     }
 
     private static ApiClient buildApiClient(AuthOptions opts, Consumer<HttpRequest.Builder> headers) {
-        ApiClient c = new ApiClient();
+        ApiClient c = ApiClients.create();
         c.updateBaseUri(opts.baseUrl().toString());
         c.setRequestInterceptor(headers);
         return c;
