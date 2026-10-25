@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.34.1] — 2026-10-25
+
 ### Fixed 🐛
 
 - A backtest started with a numeric or boolean per-run `params` value is readable again. The generated
