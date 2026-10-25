@@ -100,6 +100,16 @@ class LiveConnectionTest {
                 if (socketConnections.incrementAndGet() == 1) firstSocket.set(socket);
             }
 
+            /**
+             * Answer the client's close frame. Left unanswered, the server side of the socket keeps its
+             * read loop alive until the client gives up, and {@code MockWebServer.shutdown()} then waits
+             * out its five seconds ("Gave up waiting for queue to shut down") on some runs.
+             */
+            @Override
+            public void onClosing(WebSocket socket, int code, String reason) {
+                socket.close(code, reason);
+            }
+
             @Override
             public void onMessage(WebSocket socket, okio.ByteString bytes) {
                 try {
