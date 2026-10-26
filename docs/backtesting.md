@@ -4,11 +4,15 @@ Examples assume an authenticated `QTSurfer qts`; see [auth.md](auth.md) for setu
 
 ## Backtest workflow
 
-Managed kline preparation accepts all fifteen cadences, as ticker and funding data do:
-`1s`, `5s`, `1m`, `3m`, `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `8h`, `12h`, `1d`, `1w`, `1q`.
-Omission selects `1s`. For a dataset, omission uses its own cadence; a requested cadence must be an
-equal or coarser exact multiple. DEX venues are not direct backtest sources: import history as a
-dataset first, then use `exchangeId=user`.
+Managed-exchange preparation accepts the cadences included in the account's plan; see the API's
+[cadences by plan](https://www.qtsurfer.com/docs/developers/api/backtest_execute#cadences-by-plan)
+table. When the high-level SDK omits cadence, the API uses that plan's default. A cadence outside the
+plan returns `402 PlanRequiredError`, which is not retryable; inspect `QTSError.getUpgradeUrl()` when
+provided. The accepted response's `PrepareAccepted.getCadence()` reports the cadence in effect for
+direct API-client calls. The high-level backtest and sweep workflows keep that acceptance internal.
+For a user dataset, the plan does not limit cadence: omission uses the dataset's own cadence, and an
+explicit cadence must be equal or a coarser exact multiple. DEX venues are not direct backtest sources:
+import history as a dataset first, then use `exchangeId=user`.
 
 A kline backtest over `exchangeId: user` requires the selected ready dataset version to have
 `type=klines`; its stored cadence or a coarser exact multiple is used. Prepare rejects other data

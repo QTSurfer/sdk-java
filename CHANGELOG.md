@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.37.0] — 2026-10-26
+
+### Added ✨
+
+- `DatasetImportCreated.getCadence()` reports the effective cadence returned when an import starts. DEX
+  imports can use any cadence included in the plan; a plan-default import creates candles, while native
+  per-trade history still requires a plan that includes the source's native rate.
+
+### Changed 🔄
+
+- Adopt API client 0.27.0 (OpenAPI 0.128.49). Managed-exchange preparation and imports use the plan's
+  default cadence when omitted, and a cadence outside the plan is a non-retryable `402` exposed through
+  `QTSError.getPlanRequiredError()` and `getUpgradeUrl()`.
+
 ## [0.35.0] — 2026-10-25
 
 ### Added ✨

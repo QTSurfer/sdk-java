@@ -1,6 +1,6 @@
 # API coverage
 
-OpenAPI **0.128.46** and AsyncAPI **0.3.0**. This table maps every REST operation to its generated
+OpenAPI **0.128.49** and AsyncAPI **0.3.0**. This table maps every REST operation to its generated
 client and SDK entry point. Workflow stages have no standalone high-level method: the SDK owns
 their temporary identifiers, polling and cancellation. The generated client remains available
 when an application needs those lower-level calls directly.
@@ -23,7 +23,7 @@ when an application needs those lower-level calls directly.
 | `getStrategy` | `StrategyApi.getStrategy` | getStrategyState | [strategy](strategy.md) |
 | `deleteStrategy` | `StrategyApi.deleteStrategy` | deleteStrategy | [strategy](strategy.md) |
 | `getStrategyCode` | `StrategyApi.getStrategyCode` | getStrategyCode | [strategy](strategy.md) |
-| `prepareBacktest` | `BacktestingApi.prepareBacktest` | Internal stage of executeBacktest, Strategy.backtest and sweep; no standalone SDK method | [backtesting](backtesting.md) |
+| `prepareBacktest` | `BacktestingApi.prepareBacktest` | Internal stage of executeBacktest, Strategy.backtest and sweep; high-level calls use the plan default; generated `PrepareAccepted` reports the effective cadence | [backtesting](backtesting.md) |
 | `getPrepareStatus` | `BacktestingApi.getPrepareStatus` | Internal preparation polling; workflows interpret coverage before execution | [backtesting](backtesting.md) |
 | `executeSweep` | `BacktestingApi.executeSweep` | sweep returns a Sweep handle | [backtesting](backtesting.md) |
 | `getSweepResult` | `BacktestingApi.getSweepResult` | Sweep.getResults; Sweep.await | [backtesting](backtesting.md) |
@@ -40,7 +40,7 @@ when an application needs those lower-level calls directly.
 | `openDatasetUpload` | `DatasetApi.openDatasetUpload` | openDatasetUpload; uploadDatasetFile streams bytes to storage without API credentials | [datasets](datasets.md) |
 | `finalizeDatasetUpload` | `DatasetApi.finalizeDatasetUpload` | finalizeDatasetUpload starts asynchronous ingest after transfer | [datasets](datasets.md) |
 | `getDatasetUpload` | `DatasetApi.getDatasetUpload` | getDatasetUpload | [datasets](datasets.md) |
-| `importDataset` | `DatasetApi.importDataset` | importDataset accepts typed CEX/DEX blocks and optional cadence | [datasets](datasets.md) |
+| `importDataset` | `DatasetApi.importDataset` | importDataset accepts typed CEX/DEX blocks and optional cadence; `DatasetImportCreated.getCadence()` reports the effective cadence when known | [datasets](datasets.md) |
 | `getDatasetImport` | `DatasetApi.getDatasetImport` | getDatasetImport; poll fetching/ingesting until ready or failed | [datasets](datasets.md) |
 | `startLive` | `LiveExecutionApi.startLive` | startLive; CEX feeds or one DEX pool, with start-only warmup | [live](live.md) |
 | `getLive` | `LiveExecutionApi.getLive` | getLive(strategyId) reads the strategy's latest run | [live](live.md) |

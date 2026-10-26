@@ -72,13 +72,19 @@ var imported = qts.importDataset(new DatasetImportRequest()
 var importedState = qts.getDatasetImport(imported.getDatasetId(), imported.getImportId());
 ```
 
-CEX `cadence` accepts `1s`, `5s`, `1m`, `3m`, `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `8h`,
-`12h`, `1d`, `1w`, `1q` for either data type. Omit it to choose the finest cadence available over
-the entire range; mixed history uses the common coarser cadence instead of introducing a gap.
-A request finer than the available cadence, or not an exact multiple, ends `FAILED` asynchronously
-and names the finest available cadence. DEX accepts only `1s`, `1m`, `5m`, or omission for native
-per-trade events. Dataset versions also report discovered `3m`, `2h`, `8h`, `12h` and `1w` steps.
-Imports consume dataset limits and are bounded by account `maxImportRangeHours`.
+CEX and DEX candle imports use the cadences included in the account's plan. Omit `cadence` to use the
+plan default. The accepted `DatasetImportCreated` response includes `getCadence()` when the effective
+cadence is already known; a plan without the source's native rate may omit it for a CEX import whose
+range determines the common cadence. Asking for a cadence outside the plan returns a non-retryable
+`402 PlanRequiredError`; inspect `QTSError.getUpgradeUrl()` when provided. DEX candle imports accept
+any plan cadence, and `dex.id` / `dex.version` are unnecessary for this shape.
+
+A DEX import with no cadence uses the plan default to build candles (`type=klines`). On a plan that
+includes the source's native rate, omitting cadence can instead request per-trade history; provide
+`id` and `version` for that form. Dataset versions report their discovered cadence, including `rt`
+for irregular per-trade data. Uploads and prepares against `exchangeId=user` are not limited by the
+plan's exchange cadences. Imports consume dataset limits and are bounded by account
+`maxImportRangeHours`.
 
 ## Upload a first version
 

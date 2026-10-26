@@ -1,8 +1,8 @@
 package com.qtsurfer.api.sdk.internal;
 
 import com.qtsurfer.api.client.api.BacktestingApi;
-import com.qtsurfer.api.client.model.AcceptedJob;
 import com.qtsurfer.api.client.model.DataSourceType;
+import com.qtsurfer.api.client.model.PrepareAccepted;
 import com.qtsurfer.api.client.model.PrepareJobState;
 import com.qtsurfer.api.client.model.PrepareRequest;
 import com.qtsurfer.api.sdk.errors.QTSCanceledError;
@@ -52,7 +52,7 @@ public final class Preparation {
             Consumer<Double> onPercent,
             Consumer<PrepareJobState> onPrepared) {
 
-        AcceptedJob accepted = ApiCalls.call(
+        PrepareAccepted accepted = ApiCalls.call(
                 () -> api.prepareBacktest(exchangeId, type, body),
                 "Prepare submission failed",
                 QTSPreparationError::new);

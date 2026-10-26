@@ -2,6 +2,7 @@ package com.qtsurfer.api.sdk.workflows;
 
 import com.qtsurfer.api.client.api.BacktestingApi;
 import com.qtsurfer.api.client.model.AcceptedJob;
+import com.qtsurfer.api.client.model.PrepareAccepted;
 import com.qtsurfer.api.client.model.BacktestJobResult;
 import com.qtsurfer.api.client.model.DataSourceType;
 import com.qtsurfer.api.client.model.ExecuteBacktestRequest;
@@ -81,7 +82,7 @@ class BacktestWorkflowTest {
         when(strategyClient.compile("class S {}")).thenReturn("strategy-abc");
 
         when(backtestingApi.prepareBacktest(eq("binance"), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
-                .thenReturn(new AcceptedJob().jobId("prep-1"));
+                .thenReturn(new PrepareAccepted().jobId("prep-1").cadence("1s"));
         when(backtestingApi.getPrepareStatus("binance", DataSourceType.TICKER, "prep-1"))
                 .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED).size(100).completed(100));
 
@@ -121,7 +122,7 @@ class BacktestWorkflowTest {
     void aKlineRequestPreparesExecutesAndReadsOnTheKlineRoute() throws Exception {
         when(strategyClient.compile("class S {}")).thenReturn("strategy-abc");
         when(backtestingApi.prepareBacktest(eq("user"), eq(DataSourceType.KLINE), any(PrepareRequest.class)))
-                .thenReturn(new AcceptedJob().jobId("prep-1"));
+                .thenReturn(new PrepareAccepted().jobId("prep-1").cadence("1s"));
         when(backtestingApi.getPrepareStatus("user", DataSourceType.KLINE, "prep-1"))
                 .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED));
         when(backtestingApi.executeBacktest(eq("user"), eq(DataSourceType.KLINE), any(ExecuteBacktestRequest.class)))
@@ -161,7 +162,7 @@ class BacktestWorkflowTest {
     void sendsScalarParamsWithTheExecuteRequest() throws Exception {
         when(strategyClient.compile("class S {}")).thenReturn("strategy-abc");
         when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
-                .thenReturn(new AcceptedJob().jobId("prep-1"));
+                .thenReturn(new PrepareAccepted().jobId("prep-1").cadence("1s"));
         when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
                 .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED));
         when(backtestingApi.executeBacktest(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestRequest.class)))
@@ -187,7 +188,7 @@ class BacktestWorkflowTest {
     void sendsBaseConfigWithTheExecuteRequest() throws Exception {
         when(strategyClient.compile("class S {}")).thenReturn("strategy-abc");
         when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
-                .thenReturn(new AcceptedJob().jobId("prep-1"));
+                .thenReturn(new PrepareAccepted().jobId("prep-1").cadence("1s"));
         when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
                 .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED));
         when(backtestingApi.executeBacktest(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestRequest.class)))
@@ -217,7 +218,7 @@ class BacktestWorkflowTest {
         when(strategyClient.compile("class S {}")).thenReturn("strategy-abc");
 
         when(backtestingApi.prepareBacktest(eq("binance"), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
-                .thenReturn(new AcceptedJob().jobId("prep-1"));
+                .thenReturn(new PrepareAccepted().jobId("prep-1").cadence("1s"));
         when(backtestingApi.getPrepareStatus("binance", DataSourceType.TICKER, "prep-1"))
                 .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED).size(1).completed(1));
 
@@ -263,7 +264,7 @@ class BacktestWorkflowTest {
     void throwsQTSPreparationErrorWhenPrepareStatusIsFailed() throws Exception {
         when(strategyClient.compile(anyString())).thenReturn("strategy-abc");
         when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
-                .thenReturn(new AcceptedJob().jobId("prep-1"));
+                .thenReturn(new PrepareAccepted().jobId("prep-1").cadence("1s"));
         when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
                 .thenReturn(new PrepareJobState()
                         .status(PrepareJobState.StatusEnum.FAILED)
@@ -280,7 +281,7 @@ class BacktestWorkflowTest {
     void throwsQTSExecutionErrorWhenExecutionStateIsFailed() throws Exception {
         when(strategyClient.compile(anyString())).thenReturn("strategy-abc");
         when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
-                .thenReturn(new AcceptedJob().jobId("prep-1"));
+                .thenReturn(new PrepareAccepted().jobId("prep-1").cadence("1s"));
         when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
                 .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED).size(1).completed(1));
         when(backtestingApi.executeBacktest(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestRequest.class)))
@@ -306,7 +307,7 @@ class BacktestWorkflowTest {
     void cancelTriggersServerSideCancelBacktestWhenExecuteStageReached() throws Exception {
         when(strategyClient.compile(anyString())).thenReturn("strategy-abc");
         when(backtestingApi.prepareBacktest(anyString(), eq(DataSourceType.TICKER), any(PrepareRequest.class)))
-                .thenReturn(new AcceptedJob().jobId("prep-1"));
+                .thenReturn(new PrepareAccepted().jobId("prep-1").cadence("1s"));
         when(backtestingApi.getPrepareStatus(anyString(), eq(DataSourceType.TICKER), eq("prep-1")))
                 .thenReturn(new PrepareJobState().status(PrepareJobState.StatusEnum.COMPLETED).size(1).completed(1));
         when(backtestingApi.executeBacktest(anyString(), eq(DataSourceType.TICKER), any(ExecuteBacktestRequest.class)))
