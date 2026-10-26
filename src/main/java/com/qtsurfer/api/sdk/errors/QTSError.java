@@ -5,8 +5,10 @@ import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.ErrorNextCall;
 import com.qtsurfer.api.client.model.InsufficientScopeError;
+import com.qtsurfer.api.client.model.PlanRequiredError;
 import com.qtsurfer.api.client.model.ResponseError;
 
+import java.net.URI;
 import java.net.http.HttpHeaders;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -21,6 +23,7 @@ public class QTSError extends RuntimeException {
     private final ApiException apiException;
     private final ResponseError responseError;
     private final InsufficientScopeError insufficientScopeError;
+    private final PlanRequiredError planRequiredError;
 
     public QTSError(String message) {
         this(message, null);
@@ -31,6 +34,7 @@ public class QTSError extends RuntimeException {
         apiException = findApiException(cause);
         responseError = parseResponseError(apiException);
         insufficientScopeError = parseInsufficientScopeError(apiException);
+        planRequiredError = parsePlanRequiredError(apiException);
     }
 
     /** @return the HTTP status when this error originated in an API response */
@@ -45,6 +49,16 @@ public class QTSError extends RuntimeException {
     /** @return the typed 403 error when an operation is missing a required API-key scope */
     public Optional<InsufficientScopeError> getInsufficientScopeError() {
         return Optional.ofNullable(insufficientScopeError);
+    }
+
+    /** @return the typed plan-entitlement error when the API rejected the request with {@code 402} */
+    public Optional<PlanRequiredError> getPlanRequiredError() {
+        return Optional.ofNullable(planRequiredError);
+    }
+
+    /** @return the plan-change page supplied by the API, when configured for this environment */
+    public Optional<URI> getUpgradeUrl() {
+        return getPlanRequiredError().map(PlanRequiredError::getUpgradeUrl);
     }
 
     /** @return the missing resource/action grant, when this is an insufficient-scope error */
@@ -104,6 +118,19 @@ public class QTSError extends RuntimeException {
         try {
             return new ApiClient().getObjectMapper()
                     .readValue(exception.getResponseBody(), InsufficientScopeError.class);
+        } catch (JsonProcessingException ignored) {
+            return null;
+        }
+    }
+
+    private static PlanRequiredError parsePlanRequiredError(ApiException exception) {
+        if (exception == null || exception.getCode() != 402
+                || exception.getResponseBody() == null || exception.getResponseBody().isBlank()) {
+            return null;
+        }
+        try {
+            return new ApiClient().getObjectMapper()
+                    .readValue(exception.getResponseBody(), PlanRequiredError.class);
         } catch (JsonProcessingException ignored) {
             return null;
         }

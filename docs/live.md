@@ -12,6 +12,12 @@ stopped for exceeding resource limits. Recompiled strategies start in `SANDBOX` 
 `sandbox(true)` on `StartLiveRequest` to repeat the trial for an eligible compilation; this is
 useful when debugging because recent WebSocket `history()` is retained only for sandbox signals.
 
+The default sandbox trial is the shortest duration allowed by the account's plan. Set
+`sandboxMinutes(60)` when starting a run to request a longer trial (5–1440 minutes); the value is a
+minimum, so a run that has not received enough market data can remain in the sandbox longer. A value
+below the plan's minimum is refused with `429`. The effective duration is returned as
+`sandboxMinutes` on the start response and live-run reads.
+
 ## Start, inspect, and stop a run
 
 Build `StartLiveRequest` with the live-run name, optional description, visibility, sources, parameter map, and relay choice. `strategyId` identifies the compiled strategy. Sources and parameters use the generated API models so their exact fields stay aligned with the OpenAPI contract. On a CEX `LiveSourceRequest`, `instruments` may be omitted: the platform then uses the instruments declared by the compiled QTScript strategy, or all instruments in the selected exchange/segment if that strategy declares none. An explicit non-empty list still selects the requested instruments; an empty or explicit `null` list is rejected. A DEX source always needs one pool address.
@@ -26,7 +32,7 @@ LiveSourceRequest source = new LiveSourceRequest().venueType(LiveSourceRequest.V
         .exchange("binance").segment("spot").type(LiveSourceRequest.TypeEnum.TICKER)
         .instruments(List.of("ETH/USDT"));
 StartLiveRequest request = new StartLiveRequest().sources(List.of(source))
-        .name("ETH breakout").description("Monitored execution").relay(true);
+        .name("ETH breakout").description("Monitored execution").relay(true).sandboxMinutes(60);
 LiveRunWithStream run = qts.startLive(strategyId, request);
 LiveRunWithStream current = qts.getLive(strategyId);
 System.out.println(current.getRunId() + " " + current.getState());
@@ -34,6 +40,12 @@ qts.stopLive(strategyId);
 ```
 
 `getLive(strategyId)` and `stopLive(strategyId)` address the one live run of a strategy. `stopLive` requests a stop; inspect the returned or subsequent `LiveRun.state` before assuming execution has ended.
+
+An operation your plan does not include fails with HTTP `402` and is not retryable until the plan
+changes. `QTSError.getPlanRequiredError()` exposes the typed error and `getUpgradeUrl()` returns the
+plan-change page when the environment provides one. For missing capabilities, inspect
+`Strategy.requires()` after compilation; a strategy that requires `indicators.pro` can be registered
+on any plan, but validation, backtests, sweeps and live runs need a plan that includes it.
 
 ### Choose a supported source
 

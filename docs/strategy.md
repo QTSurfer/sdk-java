@@ -12,7 +12,11 @@ For agent-assisted authoring, install the maintained
 
 `compile` registers the supplied strategy source and returns a `Strategy`. Validate it before
 spending a backtest: validation instantiates the compiled strategy and drives a bounded synthetic
-series.
+series. `Strategy.requires()` reports required plan capabilities from the compile response; for
+example, `indicators.pro` means this strategy uses pro indicators. Registration is allowed even
+when the current plan does not include a requirement, but running it is refused with HTTP `402`.
+Read the typed refusal and optional upgrade link from `QTSError.getPlanRequiredError()` and
+`QTSError.getUpgradeUrl()`.
 
 ```java
 import com.qtsurfer.api.sdk.ValidationOutcome;

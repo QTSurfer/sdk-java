@@ -19,6 +19,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   addressed by its exchange, its type and its id, so reading a kline run needs its type. The forms without a
   type keep reading the ticker route.
 
+## [0.36.0] — 2026-10-26
+
+### Added ✨
+
+- Expose compiled strategy requirements with `Strategy.requires()` and retain typed `402`
+  plan errors, including the optional `upgradeUrl`, on `QTSError`.
+- Pass `sandboxMinutes` through the generated live request model.
+
+### Changed 🔄
+
+- Adopt API client 0.26.0 (OpenAPI 0.128.48), including pro-indicator plan requirements and
+  explicit plan-entitlement refusals.
+
 ## [0.34.1] — 2026-10-25
 
 ### Fixed 🐛

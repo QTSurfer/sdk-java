@@ -15,17 +15,24 @@ public final class Strategy {
 
     private final String id;
     private final List<DeclaredProperty> declaredProperties;
+    private final List<String> requires;
     private final BacktestWorkflow workflow;
 
     /** Internal constructor used by the SDK workflow; not part of the public contract. */
     public Strategy(String id, BacktestWorkflow workflow) {
-        this(id, List.of(), workflow);
+        this(id, List.of(), List.of(), workflow);
     }
 
     /** Internal constructor used by the SDK workflow; not part of the public contract. */
     public Strategy(String id, List<DeclaredProperty> declaredProperties, BacktestWorkflow workflow) {
+        this(id, declaredProperties, List.of(), workflow);
+    }
+
+    /** Internal constructor used by the SDK workflow; not part of the public contract. */
+    public Strategy(String id, List<DeclaredProperty> declaredProperties, List<String> requires, BacktestWorkflow workflow) {
         this.id = Objects.requireNonNull(id, "id");
         this.declaredProperties = List.copyOf(declaredProperties);
+        this.requires = List.copyOf(requires);
         this.workflow = Objects.requireNonNull(workflow, "workflow");
     }
 
@@ -36,6 +43,9 @@ public final class Strategy {
 
     /** Best-effort property vocabulary discovered while compiling this strategy. */
     public List<DeclaredProperty> declaredProperties() { return declaredProperties; }
+
+    /** Capabilities required by this compiled strategy, such as {@code indicators.pro}. */
+    public List<String> requires() { return requires; }
 
     /** Run a backtest with this strategy. Prepare + execute start immediately. */
     public CompletableFuture<Backtest> executeBacktest(BacktestRequest request, BacktestOptions options) {

@@ -14,6 +14,7 @@ import com.qtsurfer.api.sdk.BacktestOptions;
 import com.qtsurfer.api.sdk.BacktestProgress;
 import com.qtsurfer.api.sdk.BacktestRequest;
 import com.qtsurfer.api.sdk.BacktestStage;
+import com.qtsurfer.api.sdk.CompiledStrategy;
 import com.qtsurfer.api.sdk.Strategy;
 import com.qtsurfer.api.sdk.internal.StrategyCompileClient;
 import org.junit.jupiter.api.BeforeEach;
@@ -74,6 +75,16 @@ class DomainObjectsTest {
 
         Strategy s = workflow.compile("class S {}", fastOpts()).get(5, TimeUnit.SECONDS);
         assertEquals("strategy-abc", s.id());
+    }
+
+    @Test
+    void compiledStrategyExposesRequiredCapabilities() throws Exception {
+        when(strategyClient.compileDetails(anyString()))
+                .thenReturn(new CompiledStrategy("strategy-abc", List.of(), List.of("indicators.pro")));
+
+        Strategy s = workflow.compile("class S {}", fastOpts()).get(5, TimeUnit.SECONDS);
+
+        assertEquals(List.of("indicators.pro"), s.requires());
     }
 
     @Test

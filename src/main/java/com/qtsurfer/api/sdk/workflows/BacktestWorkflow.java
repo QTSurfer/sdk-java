@@ -75,7 +75,7 @@ public final class BacktestWorkflow {
         return CompletableFuture.supplyAsync(() -> {
             emit(safeOpts.onProgress(), new BacktestProgress(BacktestStage.COMPILING, null));
             CompiledStrategy compiled = compileStrategy(source);
-            return new Strategy(compiled.id(), compiled.declaredProperties(), this);
+            return new Strategy(compiled.id(), compiled.declaredProperties(), compiled.requires(), this);
         }, executor);
     }
 

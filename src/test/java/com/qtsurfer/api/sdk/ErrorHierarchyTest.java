@@ -53,4 +53,16 @@ class ErrorHierarchyTest {
                 "{\"code\":503,\"message\":\"Try again\",\"retryable\":true}"));
         assertEquals(true, retryableError.getRetryable().orElseThrow());
     }
+
+    @Test
+    void exposesPlanRequiredErrorAndOptionalUpgradeUrl() {
+        QTSError error = new QTSError("live run refused", new ApiException(402, "Payment Required", null,
+                "{\"code\":402,\"message\":\"Live runs are not included in tier free.\","
+                        + "\"retryable\":false,\"upgradeUrl\":\"https://example.com/upgrade\"}"));
+
+        assertEquals(402, error.getStatusCode().orElseThrow());
+        assertEquals(false, error.getRetryable().orElseThrow());
+        assertEquals("https://example.com/upgrade", error.getUpgradeUrl().orElseThrow().toString());
+        assertEquals(402, error.getPlanRequiredError().orElseThrow().getCode());
+    }
 }

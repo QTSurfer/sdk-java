@@ -63,7 +63,14 @@ public final class HttpStrategyCompileClient implements StrategyCompileClient {
                 }
             }
         }
-        return new CompiledStrategy(json.get("strategyId").asText(), properties);
+        List<String> requires = new ArrayList<>();
+        JsonNode required = json.get("requires");
+        if (required != null && required.isArray()) {
+            required.forEach(node -> {
+                if (node.isTextual()) requires.add(node.asText());
+            });
+        }
+        return new CompiledStrategy(json.get("strategyId").asText(), properties, requires);
     }
 
     private void applyInterceptor(HttpRequest.Builder builder) {
