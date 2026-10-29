@@ -86,6 +86,24 @@ for irregular per-trade data. Uploads and prepares against `exchangeId=user` are
 plan's exchange cadences. Imports consume dataset limits and are bounded by account
 `maxImportRangeHours`.
 
+Solana DEX imports support candles only. Even Elite uses its plan default (`1s`) when `cadence` is
+omitted; `id`, `version`, and `factory` are never needed. The address is base58 and case-sensitive.
+Candle imports whose `from` is older than 180 days return `400` immediately on every network;
+per-trade and CEX imports are not subject to that history limit. DEX candle grids can be sparse: a
+bar may be absent for an interval with no trades.
+
+```java
+var solanaImport = qts.importDataset(new DatasetImportRequest()
+        .name("sol-usdc-history").instrument("SOL/USDC")
+        .from(OffsetDateTime.parse("2026-10-27T00:00:00Z"))
+        .to(OffsetDateTime.parse("2026-10-27T06:00:00Z"))
+        .type(DatasetImportRequest.TypeEnum.DEX)
+        .cadence(DatasetImportRequest.CadenceEnum._5M)
+        .dex(new DatasetImportDexRequest()
+                .network(DatasetImportDexRequest.NetworkEnum.SOLANA)
+                .contract("Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE")));
+```
+
 ## Upload a first version
 
 Create the dataset and use the returned `DatasetCreated` value as the first upload session. It is

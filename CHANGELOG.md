@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.38.0] — 2026-10-29
+
+### Added ✨
+
+- Import Solana pool history through `importDataset()` with `DatasetImportDexRequest.NetworkEnum.SOLANA`.
+  Solana imports produce candles only and need no protocol or version; the dataset guide covers the
+  plan-default cadence, 180-day candle-history limit, and sparse bars.
+
+### Changed 🔄
+
+- Adopt API client 0.28.0 (OpenAPI 0.128.50).
+
 ## [0.37.0] — 2026-10-26
 
 ### Added ✨
