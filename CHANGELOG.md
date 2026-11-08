@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Documentation 📚
+
+- Document HTTP `409` recovery for stale compiled strategies in backtest, sweep, and live workflows.
+
+## [0.39.0] — 2026-11-08
+
+### Added ✨
+
+- Retry one API or direct storage request through the secondary hostname after a connection failure.
+  New requests start at the primary hostname, and HTTP responses are not retried.
+
+### Changed 🔄
+
+- Adopt API client 0.29.0 (OpenAPI 0.128.54). A `409` for an incompatible compiled strategy requires
+  registering the same source again before retrying.
+
 ## [0.38.0] — 2026-10-29
 
 ### Added ✨

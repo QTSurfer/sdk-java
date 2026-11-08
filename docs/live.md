@@ -6,6 +6,11 @@ authenticated client; see [auth.md](auth.md) for setup and token ownership.
 
 Live execution runs a compiled strategy continuously. It is separate from a backtest: start it deliberately, poll its state, and stop it when it is no longer wanted. See [account.md](account.md) before enabling retained signals on a high-volume run.
 
+Requests whose hostname starts with `api` retry once using the same suffix with `2` appended to the
+first label after a connection failure; each new request starts at the primary host, and HTTP
+responses are not retried. API-returned direct storage URLs whose host starts with `storage` behave
+the same way, preserving the signed path and query.
+
 A first run of a compiled strategy starts in `SANDBOX`. A later run starts directly in `LIVE` with
 the earlier gate verdict when a run of that same compilation was promoted and none of its runs was
 stopped for exceeding resource limits. Recompiled strategies start in `SANDBOX` again. Set
@@ -19,6 +24,11 @@ below the plan's minimum is refused with `429`. The effective duration is return
 `sandboxMinutes` on the start response and live-run reads.
 
 ## Start, inspect, and stop a run
+
+Starting a run can return HTTP `409` when another run is already active or the compiled strategy is
+incompatible with the current engine. `QTSError` exposes the status and server message; use that
+message to distinguish the cases. For an incompatible compiled strategy, register its source again
+and retry with the new strategy id. An active-run conflict requires resolving the existing run first.
 
 Build `StartLiveRequest` with the live-run name, optional description, visibility, sources, parameter map, and relay choice. `strategyId` identifies the compiled strategy. Sources and parameters use the generated API models so their exact fields stay aligned with the OpenAPI contract. On a CEX `LiveSourceRequest`, `instruments` may be omitted: the platform then uses the instruments declared by the compiled QTScript strategy, or all instruments in the selected exchange/segment if that strategy declares none. An explicit non-empty list still selects the requested instruments; an empty or explicit `null` list is rejected. A DEX source always needs one pool address.
 

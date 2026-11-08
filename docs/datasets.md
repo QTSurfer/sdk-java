@@ -5,6 +5,8 @@ Examples assume an authenticated `QTSurfer qts`; see [auth.md](auth.md) for setu
 Use a dataset when the backtest or sweep should run against your own ticker CSV or Parquet rather than a
 managed exchange. The SDK performs the authenticated API calls and streams the file directly to a
 presigned storage target; the direct transfer intentionally carries no API credentials.
+If the storage connection fails, the transfer retries once with `2` appended to the first hostname
+label while keeping the domain suffix, signed path, and query intact. A returned HTTP status is not retried.
 
 ## List datasets
 

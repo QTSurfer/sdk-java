@@ -12,6 +12,7 @@ import com.qtsurfer.api.client.binary.BinaryDownload;
 import com.qtsurfer.api.client.model.PoolDetail;
 import com.qtsurfer.api.sdk.internal.MarketCatalogues;
 import com.qtsurfer.api.client.invoker.ApiClient;
+import com.qtsurfer.api.client.invoker.QTSurferFailoverHttpClient;
 import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.Account;
 import com.qtsurfer.api.client.model.AccountUsage;
@@ -1311,7 +1312,8 @@ public final class AuthenticatedClient {
     }
 
     private HttpClient uploadHttpClient() {
-        return options.httpClient() != null ? options.httpClient() : HttpClient.newHttpClient();
+        HttpClient client = options.httpClient() != null ? options.httpClient() : HttpClient.newHttpClient();
+        return QTSurferFailoverHttpClient.wrap(client);
     }
 
     // ---- Refresh-on-401 plumbing ----

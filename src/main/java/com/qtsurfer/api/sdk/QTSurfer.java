@@ -11,6 +11,7 @@ import com.qtsurfer.api.client.binary.BinaryDownload;
 import com.qtsurfer.api.client.model.PoolDetail;
 import com.qtsurfer.api.sdk.internal.MarketCatalogues;
 import com.qtsurfer.api.client.invoker.ApiClient;
+import com.qtsurfer.api.client.invoker.QTSurferFailoverHttpClient;
 import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.CreateDatasetRequest;
 import com.qtsurfer.api.client.model.Account;
@@ -968,7 +969,8 @@ public final class QTSurfer {
     }
 
     private HttpClient uploadHttpClient() {
-        return options.httpClient() != null ? options.httpClient() : HttpClient.newHttpClient();
+        HttpClient client = options.httpClient() != null ? options.httpClient() : HttpClient.newHttpClient();
+        return QTSurferFailoverHttpClient.wrap(client);
     }
 
     private static String describe(ApiException e) {

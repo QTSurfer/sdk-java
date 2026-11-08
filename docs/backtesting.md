@@ -40,6 +40,11 @@ ResultMap result = qts.executeBacktest(BacktestRequest.builder()
 both asynchronous stages, and completes with `ResultMap`. Polling uses Failsafe exponential backoff
 and optional stage timeouts.
 
+Execution can return HTTP `409` when a compiled strategy is incompatible with the current engine. The
+SDK exposes this as `QTSError` (including `getStatusCode()` and the server message). Register the
+strategy source again to obtain a current compiled strategy, then submit the run again; do not retry
+the same compiled strategy unchanged. The same conflict can occur when submitting a sweep.
+
 Set scalar strategy properties for one execution with `param` or `params`; omit them to use the
 declared defaults. A completed `ResultMap` echoes the values in `getParams()`.
 
