@@ -21,6 +21,8 @@ refresh; both surfaces return the same generated response types.
 Its required `scopes` is a resource-to-actions map shared with token responses; the API enforces
 them on protected operations. A missing grant returns a typed `403 insufficient_scope` error. See
 [auth.md](auth.md#read-granted-scopes).
+When an API key has an expiry, `getApiKeyExpiresAt()` returns it in UTC. A `null` value means no
+expiry applies; it is separate from the lifetime of the current JWT.
 
 ```java
 import com.qtsurfer.api.client.model.Account;

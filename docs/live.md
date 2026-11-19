@@ -30,7 +30,7 @@ incompatible with the current engine. `QTSError` exposes the status and server m
 message to distinguish the cases. For an incompatible compiled strategy, register its source again
 and retry with the new strategy id. An active-run conflict requires resolving the existing run first.
 
-Build `StartLiveRequest` with the live-run name, optional description, visibility, sources, parameter map, and relay choice. `strategyId` identifies the compiled strategy. Sources and parameters use the generated API models so their exact fields stay aligned with the OpenAPI contract. On a CEX `LiveSourceRequest`, `instruments` may be omitted: the platform then uses the instruments declared by the compiled QTScript strategy, or all instruments in the selected exchange/segment if that strategy declares none. An explicit non-empty list still selects the requested instruments; an empty or explicit `null` list is rejected. A DEX source always needs one pool address.
+Build `StartLiveRequest` with the live-run name, optional description, visibility, sources, parameter map, and relay choice. `strategyId` identifies the compiled strategy. Sources and parameters use the generated API models so their exact fields stay aligned with the OpenAPI contract. A run may start with no sources and wait in `WAITING`, or with several sources on the same market feed. On a CEX `LiveSourceRequest`, `instruments` may be omitted: the platform then uses the instruments declared by the compiled QTScript strategy, or all instruments in the selected exchange/segment if that strategy declares none. An explicit non-empty list still selects the requested instruments; an empty or explicit `null` list is rejected. Each DEX source is one pool address; sources on one run must use the same chain and protocol.
 
 ```java
 import com.qtsurfer.api.client.model.LiveSourceRequest;
@@ -48,6 +48,42 @@ LiveRunWithStream current = qts.getLive(strategyId);
 System.out.println(current.getRunId() + " " + current.getState());
 qts.stopLive(strategyId);
 ```
+
+### Attach or detach a source while the run stays live
+
+Use `attachLiveSource` to start a waiting run or add another source without stopping an active run.
+Sources attached at the same time must use the same market feed: the same exchange for CEX, or the
+same chain and protocol for DEX. The optional `warmFrom` applies only to the new source. Reuse a
+`ref` value when retrying an ambiguous request; the server returns the existing attachment instead
+of creating another one. A repeated source is also idempotent.
+
+```java
+import com.qtsurfer.api.client.model.AttachLiveSourceRequest;
+import com.qtsurfer.api.client.model.LiveAttachmentAccepted;
+import com.qtsurfer.api.client.model.LiveSourceRequest;
+
+LiveSourceRequest extra = new LiveSourceRequest()
+        .venueType(LiveSourceRequest.VenueTypeEnum.CEX)
+        .exchange("binance").segment("spot")
+        .type(LiveSourceRequest.TypeEnum.TICKER)
+        .instruments(List.of("BTC/USDT"));
+LiveAttachmentAccepted accepted = qts.attachLiveSource(run.getRunId(),
+        new AttachLiveSourceRequest().source(extra).warmFrom(120).ref("alert-8841"));
+System.out.println(accepted.getAttachmentId() + " " + accepted.getState()
+        + " effective at " + accepted.getEffectiveAtMs());
+```
+
+The `202` response means the request was accepted, not that the source is already attached. Read
+`getLiveRun(runId).getAttachments()` and wait for `ATTACHED`; `REFUSED` is terminal. A source that
+duplicates a pair already read by the strategy is refused with `REFUSED`, including in the
+strategy's `onDetach` callback when a newly added source is removed for that reason.
+
+Use `detachLiveSource(runId, attachmentId)` to remove a source. Its accepted response is usually
+`DETACHING`; inspect the same attachment until it is `DETACHED`. Detaching the last source moves the
+run back to `WAITING`, releases its strategy memory, and keeps paper accounts; open positions from
+that source are reported as gaps. The strategy receives `onAttach(StrategyContext)` and
+`onDetach(StrategyContext)` for source changes. These callbacks are not a substitute for polling
+the attachment state.
 
 `getLive(strategyId)` and `stopLive(strategyId)` address the one live run of a strategy. `stopLive` requests a stop; inspect the returned or subsequent `LiveRun.state` before assuming execution has ended.
 

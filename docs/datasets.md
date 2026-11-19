@@ -130,8 +130,11 @@ API key. It accepts a readable regular file only. A failed transfer raises `QTSU
 HTTP rejection is available through `statusCode()`. The error never retains the presigned URL,
 whose query parameters are credentials.
 
-CSV uploads must have a header and `timestamp` and `close` columns. Parquet uploads are accepted
-as-is. Timestamp format and cadence are discovered at ingest. A ready dataset's `dataUrl` and
+CSV uploads must have a header and `timestamp` and `close` columns. A date-only value such as
+`2010-06-29` means midnight UTC; a date-time without a zone such as `2010-06-29T14:30:00` or
+`2010-06-29 14:30:00` is also UTC. An explicit offset or `Z` is honoured. Ambiguous day-first and
+month-first dates are not accepted. Parquet uploads are accepted as-is. Timestamp format and cadence
+are discovered at ingest. A ready dataset's `dataUrl` and
 `dataFormat` identify the stored downloadable representation; inspect `dataFormat` rather than
 assuming it matches the uploaded file. See the API's [dataset format reference](https://www.qtsurfer.com/docs/developers/api/datasets)
 for the optional columns and validation rules.

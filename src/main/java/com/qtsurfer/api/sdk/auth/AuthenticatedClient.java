@@ -32,6 +32,8 @@ import com.qtsurfer.api.client.model.EquityCurveResult;
 import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.FinalizeDatasetUpload202Response;
 import com.qtsurfer.api.client.model.InstrumentDetail;
+import com.qtsurfer.api.client.model.AttachLiveSourceRequest;
+import com.qtsurfer.api.client.model.LiveAttachmentAccepted;
 import com.qtsurfer.api.client.model.LiveParamsUpdateResult;
 import com.qtsurfer.api.client.model.LiveConnectionToken;
 import com.qtsurfer.api.client.model.LiveCommandResult;
@@ -877,6 +879,42 @@ public final class AuthenticatedClient {
         Objects.requireNonNull(request, "request");
         return withRefreshOn401(() -> callDataset(
                 () -> liveExecutionApi.startLive(strategyId, request), "startLive"));
+    }
+
+    /**
+     * Attach a market-data source to a live run without stopping it.
+     *
+     * <p>The response confirms acceptance only. Inspect {@link #getLiveRun(String)} until the
+     * attachment reaches {@code ATTACHED} or {@code REFUSED}. This request participates in the
+     * session's refresh-on-401 policy.
+     *
+     * @param runId the caller-owned live run
+     * @param request source, optional warmup, and optional idempotency reference
+     * @return the accepted attachment and its effective market position
+     */
+    public LiveAttachmentAccepted attachLiveSource(String runId, AttachLiveSourceRequest request) {
+        Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(request, "request");
+        return withRefreshOn401(() -> callDataset(
+                () -> liveExecutionApi.attachLiveSource(runId, request), "attachLiveSource"));
+    }
+
+    /**
+     * Detach a source from a live run without stopping it.
+     *
+     * <p>The accepted state is normally {@code DETACHING}; inspect {@link #getLiveRun(String)}
+     * to confirm {@code DETACHED}. Detaching the last source leaves the run waiting for another
+     * source. This request participates in the session's refresh-on-401 policy.
+     *
+     * @param runId the caller-owned live run
+     * @param attachmentId attachment returned by {@link #attachLiveSource(String, AttachLiveSourceRequest)}
+     * @return the accepted detach and its effective market position
+     */
+    public LiveAttachmentAccepted detachLiveSource(String runId, String attachmentId) {
+        Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(attachmentId, "attachmentId");
+        return withRefreshOn401(() -> callDataset(
+                () -> liveExecutionApi.detachLiveSource(runId, attachmentId), "detachLiveSource"));
     }
 
     /** Read simulated accounts, open positions, and KPIs for a paper-enabled run. */

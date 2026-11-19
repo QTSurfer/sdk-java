@@ -30,6 +30,8 @@ import com.qtsurfer.api.client.model.EquityCurveResult;
 import com.qtsurfer.api.client.model.Exchange;
 import com.qtsurfer.api.client.model.FinalizeDatasetUpload202Response;
 import com.qtsurfer.api.client.model.InstrumentDetail;
+import com.qtsurfer.api.client.model.AttachLiveSourceRequest;
+import com.qtsurfer.api.client.model.LiveAttachmentAccepted;
 import com.qtsurfer.api.client.model.LiveParamsUpdateResult;
 import com.qtsurfer.api.client.model.LiveConnectionToken;
 import com.qtsurfer.api.client.model.LiveCommandResult;
@@ -1037,6 +1039,48 @@ public final class QTSurfer {
             return liveExecutionApi.startLive(strategyId, request);
         } catch (ApiException e) {
             throw new QTSError("startLive call failed: " + describe(e), e);
+        }
+    }
+
+    /**
+     * Attach a market-data source to a live run without stopping it.
+     *
+     * <p>The source takes effect at the returned market position. The response is an acceptance,
+     * not proof that the source is attached; inspect {@link #getLiveRun(String)} until its
+     * attachment state is {@code ATTACHED} or {@code REFUSED}.
+     *
+     * @param runId the caller-owned live run
+     * @param request source, optional warmup, and optional idempotency reference
+     * @return the accepted attachment and its effective market position
+     */
+    public LiveAttachmentAccepted attachLiveSource(String runId, AttachLiveSourceRequest request) {
+        Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(request, "request");
+        try {
+            return liveExecutionApi.attachLiveSource(runId, request);
+        } catch (ApiException e) {
+            throw new QTSError("attachLiveSource call failed: " + describe(e), e);
+        }
+    }
+
+    /**
+     * Detach a source from a live run without stopping it.
+     *
+     * <p>The returned state is normally {@code DETACHING}; inspect {@link #getLiveRun(String)}
+     * to confirm when it becomes {@code DETACHED}. Detaching the last source leaves the run
+     * waiting for another source.
+     *
+     * @param runId the caller-owned live run
+     * @param attachmentId attachment returned by {@link #attachLiveSource(String, AttachLiveSourceRequest)}
+     * @return the accepted detach and its effective market position
+     */
+    public LiveAttachmentAccepted detachLiveSource(String runId, String attachmentId) {
+        Objects.requireNonNull(runId, "runId");
+        Objects.requireNonNull(attachmentId, "attachmentId");
+        try {
+            return liveExecutionApi.detachLiveSource(runId, attachmentId);
+        } catch (ApiException e) {
+            throw new QTSError("detachLiveSource call failed: " + describe(e), e);
         }
     }
 

@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.40.0] — 2026-11-19
+
+### Added ✨
+
+- Expose `attachLiveSource` and `detachLiveSource` on both SDK clients so a source can be added to,
+  or removed from, a live run without stopping it.
+
+### Changed 🔄
+
+- Adopt API client 0.30.0 (OpenAPI 0.128.57). Token and account responses expose API-key expiry;
+  live runs can wait without a source and can read several sources on the same market feed.
+- Document accepted UTC date and zone-less date-time forms for CSV timestamps.
+
 ### Documentation 📚
 
 - Document HTTP `409` recovery for stale compiled strategies in backtest, sweep, and live workflows.

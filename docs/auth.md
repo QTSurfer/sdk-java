@@ -21,11 +21,17 @@ AuthenticatedClient qts = QTSurfer.authenticate("ak_...");
 ```
 
 `AuthenticatedClient` refreshes a token before it expires and retries one `401` after obtaining a
-new token. An invalid, revoked, or expired API key raises `QTSAuthError`; where the deployment
+new token. An invalid, revoked, expired, or unrecognized API key raises `QTSAuthError`; the server
+does not distinguish those cases in its `401` response. Where the deployment
 requires scopes, a valid key with none returns `403` `apikey_without_scopes` and no token. Add at
 least one resource/action scope to the key in the web app; retrying the same key will not help.
 `QTSAuthError.getAuthTokenError()` retains the typed server error, including its code and message;
 `getStatusCode()` reports the HTTP status. A rate limit or other API failure raises `QTSError`.
+
+An API key may have an expiry independent of the JWT. When present, `AuthTokenResponse.getKeyExp()`
+is the key's expiry in epoch seconds; `getAccount().getApiKeyExpiresAt()` exposes the same moment in
+UTC. A non-expiring key has no token `key_exp` and a `null` account expiry. Rotate the key before it
+expires: a token already issued continues working until its own `expires_in` elapses.
 
 ## Persisting tokens
 

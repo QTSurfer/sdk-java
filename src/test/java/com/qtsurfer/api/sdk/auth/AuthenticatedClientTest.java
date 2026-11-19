@@ -1,6 +1,7 @@
 package com.qtsurfer.api.sdk.auth;
 
 import com.qtsurfer.api.client.model.AuthTokenResponse;
+import com.qtsurfer.api.client.model.AuthTokenRejected;
 import com.qtsurfer.api.client.model.InstrumentDetail;
 import com.qtsurfer.api.client.model.ResultMap;
 import com.qtsurfer.api.sdk.BacktestOutcome;
@@ -320,10 +321,13 @@ class AuthenticatedClientTest {
 
     @Test
     void mintFailureSurfacesAsQtsAuthError() {
-        tokenResponses.add("401:{\"code\":\"invalid_apikey\",\"message\":\"no\"}");
+        tokenResponses.add("401:{\"error\":\"invalid_credentials\"}");
         QTSAuthError ex = assertThrows(QTSAuthError.class,
                 () -> QTSurfer.authenticate("ak_bad", opts()));
         assertTrue(ex.getMessage().contains("401"));
+        assertEquals(AuthTokenRejected.ErrorEnum.INVALID_CREDENTIALS,
+                ex.getAuthTokenRejected().orElseThrow().getError());
+        assertTrue(ex.getAuthTokenError().isEmpty());
     }
 
     @Test

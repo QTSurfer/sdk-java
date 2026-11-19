@@ -1,6 +1,6 @@
 # API coverage
 
-OpenAPI **0.128.49** and AsyncAPI **0.3.0**. This table maps every REST operation to its generated
+OpenAPI **0.128.57** and AsyncAPI **0.3.0**. This table maps every REST operation to its generated
 client and SDK entry point. Workflow stages have no standalone high-level method: the SDK owns
 their temporary identifiers, polling and cancellation. The generated client remains available
 when an application needs those lower-level calls directly.
@@ -9,8 +9,8 @@ when an application needs those lower-level calls directly.
 
 | Operation ID | Generated client | SDK entry point or deliberate boundary | Guide |
 | --- | --- | --- | --- |
-| `authenticate` | `AuthApi.authenticate` | QTSurfer.authenticate; AuthenticatedClient.refresh | [auth](auth.md) |
-| `getAccount` | `AccountApi.getAccount` | getAccount; includes scopes and import-range limits | [account](account.md) |
+| `authenticate` | `AuthApi.authenticate` | QTSurfer.authenticate; AuthenticatedClient.refresh; token exposes optional API-key `key_exp` | [auth](auth.md) |
+| `getAccount` | `AccountApi.getAccount` | getAccount; includes scopes, import-range limits, and optional `apiKeyExpiresAt` | [account](account.md) |
 | `getAccountUsage` | `AccountApi.getAccountUsage` | getAccountUsage | [account](account.md) |
 | `listExchanges` | `ExchangeApi.listExchanges` | getExchanges; venueType, segments and liveSegments | [market_data](market_data.md) |
 | `listInstruments` | `ExchangeApi.listInstruments` | getInstruments(exchangeId) for CEX; getPools(exchangeId) for DEX | [market_data](market_data.md) |
@@ -42,7 +42,9 @@ when an application needs those lower-level calls directly.
 | `getDatasetUpload` | `DatasetApi.getDatasetUpload` | getDatasetUpload | [datasets](datasets.md) |
 | `importDataset` | `DatasetApi.importDataset` | importDataset accepts typed CEX/DEX blocks and optional cadence; `DatasetImportCreated.getCadence()` reports the effective cadence when known | [datasets](datasets.md) |
 | `getDatasetImport` | `DatasetApi.getDatasetImport` | getDatasetImport; poll fetching/ingesting until ready or failed | [datasets](datasets.md) |
-| `startLive` | `LiveExecutionApi.startLive` | startLive; CEX feeds or one DEX pool, with start-only warmup | [live](live.md) |
+| `startLive` | `LiveExecutionApi.startLive` | startLive; CEX feeds or one DEX pool, with start-only warmup; may start waiting with no source | [live](live.md) |
+| `attachLiveSource` | `LiveExecutionApi.attachLiveSource` | attachLiveSource; accepted attachment is asynchronous, inspect getLiveRun for its state | [live](live.md) |
+| `detachLiveSource` | `LiveExecutionApi.detachLiveSource` | detachLiveSource; accepted detach is asynchronous, inspect getLiveRun for its state | [live](live.md) |
 | `getLive` | `LiveExecutionApi.getLive` | getLive(strategyId) reads the strategy's latest run | [live](live.md) |
 | `stopLive` | `LiveExecutionApi.stopLive` | stopLive(strategyId) requests a stop; inspect actual state afterward | [live](live.md) |
 | `listLive` | `LiveExecutionApi.listLive` | listLive(cursor, limit) lists owned runs | [live](live.md) |
