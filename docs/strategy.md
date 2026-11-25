@@ -67,3 +67,8 @@ all.stream().filter(strategy -> strategy.getDeletedAt() != null)
 Listing is intentionally compact and omits each strategy's validation state. `getStrategyCode` and
 `deleteStrategy` return `404` for a strategy not registered by the caller. Deleting a registration
 does not alter historical backtests; recompiling the same source creates a new strategy id.
+
+The strategy list and state expose `getName()` when the source declares a name and `getLanguage()`
+for Java or QTScript. Use those to label entries without reading each source.
+
+The handle returned by compile also provides name() and language() when the response includes them.

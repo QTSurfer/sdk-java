@@ -1,6 +1,6 @@
 # API coverage
 
-OpenAPI **0.128.57** and AsyncAPI **0.3.0**. This table maps every REST operation to its generated
+OpenAPI **0.128.70** and AsyncAPI **0.4.0**. This table maps every REST operation to its generated
 client and SDK entry point. Workflow stages have no standalone high-level method: the SDK owns
 their temporary identifiers, polling and cancellation. The generated client remains available
 when an application needs those lower-level calls directly.
@@ -34,8 +34,14 @@ when an application needs those lower-level calls directly.
 | `cancelBacktest` | `BacktestingApi.cancelBacktest` | Backtest.cancel on the handle from Strategy.backtest | [backtesting](backtesting.md) |
 | `getBacktestResult` | `BacktestingApi.getBacktestResult` | getBacktestResult reads an owned job; Backtest.await polls a submitted job | [backtesting](backtesting.md) |
 | `createDataset` | `DatasetApi.createDataset` | createDataset returns initial metadata and its first upload session | [datasets](datasets.md) |
-| `listDatasets` | `DatasetApi.listDatasets` | getDatasets(includeDeleted); default active entries only | [datasets](datasets.md) |
+| `listDatasets` | `DatasetApi.listDatasets` | getDatasets(includeDeleted, collectionId); defaults to all active entries | [datasets](datasets.md) |
 | `getDataset` | `DatasetApi.getDataset` | getDataset | [datasets](datasets.md) |
+| `moveDataset` | `DatasetApi.moveDataset` | moveDataset | [datasets](datasets.md#collections) |
+| `createCollection` | `DatasetApi.createCollection` | createCollection | [datasets](datasets.md#collections) |
+| `listCollections` | `DatasetApi.listCollections` | getCollections | [datasets](datasets.md#collections) |
+| `getCollection` | `DatasetApi.getCollection` | getCollection | [datasets](datasets.md#collections) |
+| `updateCollection` | `DatasetApi.updateCollection` | updateCollection | [datasets](datasets.md#collections) |
+| `deleteCollection` | `DatasetApi.deleteCollection` | deleteCollection | [datasets](datasets.md#collections) |
 | `deleteDataset` | `DatasetApi.deleteDataset` | deleteDataset | [datasets](datasets.md) |
 | `openDatasetUpload` | `DatasetApi.openDatasetUpload` | openDatasetUpload; uploadDatasetFile streams bytes to storage without API credentials | [datasets](datasets.md) |
 | `finalizeDatasetUpload` | `DatasetApi.finalizeDatasetUpload` | finalizeDatasetUpload starts asynchronous ingest after transfer | [datasets](datasets.md) |
@@ -59,6 +65,28 @@ when an application needs those lower-level calls directly.
 | `getLiveRunPaper` | `LiveExecutionApi.getLiveRunPaper` | getLiveRunPaper; paper simulation must have been enabled at start | [live](live.md) |
 | `getLiveRunPaperEquity` | `LiveExecutionApi.getLiveRunPaperEquity` | getLiveRunPaperEquity; getNextLiveRunPaperEquity follows continuation | [live](live.md) |
 | `mintLiveConnectionToken` | `LiveExecutionApi.mintLiveConnectionToken` | Internal to connectLive, including renewal; no standalone token-management API | [live](live.md) |
+| `cancelSignalSubscription` | `SignalChannelsApi.cancelSignalSubscription` | Generated client | [signal channels](signal_channels.md) |
+| `createSignalChannel` | `SignalChannelsApi.createSignalChannel` | Generated client | [signal channels](signal_channels.md) |
+| `createSignalOffer` | `SignalChannelsApi.createSignalOffer` | Generated client | [signal channels](signal_channels.md) |
+| `deleteSignalChannel` | `SignalChannelsApi.deleteSignalChannel` | Generated client | [signal channels](signal_channels.md) |
+| `feedSignalSubscriptionRun` | `SignalChannelsApi.feedSignalSubscriptionRun` | Generated client | [signal channels](signal_channels.md) |
+| `getSignalChannel` | `SignalChannelsApi.getSignalChannel` | Generated client | [signal channels](signal_channels.md) |
+| `getSignalSubscription` | `SignalChannelsApi.getSignalSubscription` | Generated client | [signal channels](signal_channels.md) |
+| `listPublicSignalChannels` | `SignalChannelsApi.listPublicSignalChannels` | Generated client | [signal channels](signal_channels.md) |
+| `listSignalChannels` | `SignalChannelsApi.listSignalChannels` | Generated client | [signal channels](signal_channels.md) |
+| `listSignalCodes` | `SignalChannelsApi.listSignalCodes` | Generated client | [signal channels](signal_channels.md) |
+| `listSignalDeliveries` | `SignalChannelsApi.listSignalDeliveries` | Generated client | [signal channels](signal_channels.md) |
+| `listSignalNotices` | `SignalChannelsApi.listSignalNotices` | Generated client | [signal channels](signal_channels.md) |
+| `listSignalOffers` | `SignalChannelsApi.listSignalOffers` | Generated client | [signal channels](signal_channels.md) |
+| `listSignalSubscriptions` | `SignalChannelsApi.listSignalSubscriptions` | Generated client | [signal channels](signal_channels.md) |
+| `mintSignalCodes` | `SignalChannelsApi.mintSignalCodes` | Generated client | [signal channels](signal_channels.md) |
+| `publishSignalNotice` | `SignalChannelsApi.publishSignalNotice` | Generated client | [signal channels](signal_channels.md) |
+| `publishSignalNoticeByHook` | `SignalChannelsApi.publishSignalNoticeByHook` | Generated client | [signal channels](signal_channels.md) |
+| `redeemSignalCode` | `SignalChannelsApi.redeemSignalCode` | Generated client | [signal channels](signal_channels.md) |
+| `renewSignalSubscription` | `SignalChannelsApi.renewSignalSubscription` | Generated client | [signal channels](signal_channels.md) |
+| `revokeSignalCode` | `SignalChannelsApi.revokeSignalCode` | Generated client | [signal channels](signal_channels.md) |
+| `stopFeedingSignalSubscriptionRun` | `SignalChannelsApi.stopFeedingSignalSubscriptionRun` | Generated client | [signal channels](signal_channels.md) |
+| `updateSignalChannel` | `SignalChannelsApi.updateSignalChannel` | Generated client | [signal channels](signal_channels.md) |
 
 Both `QTSurfer` and API-key-backed `AuthenticatedClient` expose catalogue, dataset, account and live
 methods. `AuthenticatedClient` also handles JWT renewal. Binary downloads use the manual
@@ -82,8 +110,7 @@ for transport and protocol management; see the [live guide](live.md) for replay 
 | `receiveUnsubscribe` | Subscription rejection reaches `LiveConnectionOptions.onError`; a server-ended subscription is not automatically resumed |
 | `ping` | The Centrifugo transport handles ping/pong automatically |
 
-Subscribing never replays signals automatically. WebSocket history retains at most 300 recent
-sandbox signals until five minutes after the last signal; recover older or live-stage retained signals with REST
+Subscribing never replays signals automatically. WebSocket history holds recent sandbox signals for a limited time; recover older or live-stage retained signals with REST
 `getLiveSignals`. The MCP server deliberately uses REST request/response tools rather than opening
 a managed WebSocket: `get_live_signals` provides its retained-history path. New SDK pool discovery
 maps to MCP `list_pools`; metadata downloads map to `download_tickers` and `download_klines`.

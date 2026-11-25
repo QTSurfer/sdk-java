@@ -104,9 +104,9 @@ but generated requests now use `CEX`/`DEX`. CEX selection can be omitted as abov
 ### Read one DEX pool
 
 Find a pool with `getPools("robinhood", "uniswap-v3")`; its `id` is the pool address, while signals
-name the pair using `symbol`. A DEX source requires exactly one `0x` address with 40 hexadecimal
-digits, cannot omit instruments or use wildcards, and supports only `kline`. The strategy must
-consume klines. Valid pools need not appear in the hourly discovery sample.
+name the pair using `symbol` and carry the contract in `instrument.id`. A DEX source requires
+one instrument and `kline`. Use an EVM pool address or a case-sensitive Solana mint for
+`exchange=solana` and `segment=pumpfun`. Check `getExchanges()` for available live segments.
 
 ```java
 var pool = qts.getPools("robinhood", "uniswap-v3").get(0);
@@ -123,11 +123,16 @@ An invalid pool for its chain/protocol or unavailable pool-following capacity en
 within seconds with `desired=STOPPED`, freeing its active slot. Read `reason` for the explanation;
 do not parse its human-readable sentences. Other failures may leave `desired=RUNNING` until stopped.
 
+For an additional DEX source on the same chain and protocol, omit `warmFrom` or set it to
+zero. `resolveInstrument(true)` resolves the pair at the first candle. Set it to `false` to use
+a stand-in immediately. Read the attachment state and reason when an extra source is refused.
+A strategy can detach its own source. Find its `DETACH` record only in REST history with
+`type=system` and its attachment reason `STRATEGY` in the run.
+
 ### Configure warmup
 
-Set `warmFrom(seconds)` only on `StartLiveRequest` to replay market history before the first live
-event. It accepts 0–3600 seconds; `0` disables warmup. Omit it to preserve the platform's automatic
-0–900-second warmup, aligned to the current 15-minute block. The effective value is available from
+Set `warmFrom(seconds)` on `StartLiveRequest` to replay market history before the first live
+event. It accepts 0–3600 seconds; `0` disables warmup. Omit it to preserve the platform's automatic warmup. The effective value is available from
 `LiveRunWithStream.getWarmFrom()` and `LiveRunDetail.getWarmFrom()`; it may be absent only for a run
 created before this field existed. It cannot be changed by `updateLiveParams`: stop and start a new
 run to use a different warmup.
@@ -355,7 +360,7 @@ WebSocket stream. The subscription itself does not promise replay.
 
 ### Read recent sandbox signals over WebSocket
 
-`connection.history()` reads up to 300 signals that the subscribed `sig:<runId>` channel still
+`connection.history()` requests up to 300 signals that the subscribed `sig:<runId>` channel still
 holds, oldest first. Each publication has its original stream `offset`; the reply also supplies
 an `epoch` and the newest channel offset. Subscribe first (as `connectLive` does), then read
 history and deduplicate overlapping pushed signals by `signalId`.
@@ -369,13 +374,16 @@ LiveSignalHistory later = connection.history(300, first.position()).join();
 
 Keep the position from an earlier history reply, plus the last signal offset you have, to read
 only later signals after reconnecting. `history(0, null)` returns the current position without
-signals. `first.position()` uses the last returned publication's offset, so pages smaller than 300
+signals. `first.position()` uses the last returned publication's offset, so partially read pages
 do not skip held signals; for an empty reply it uses the newest channel offset. If error `112`
 reports a lost epoch, retry without a position; signals older than the
 channel now holds require REST `getLiveSignals`. Error `103` means the connection is not subscribed.
-Only sandbox signals are held: the channel keeps the newest 300 until five minutes after its last
-sandbox signal and never holds live-stage signals. The REST endpoint is the recovery path for
-anything outside that short-lived window.
+Recent sandbox signals are held for a limited time. Recover older or live-stage retained signals
+through REST. A request limit does not determine server retention.
+
+A REST or WebSocket parameter update on a `WAITING` run stores the values for its first source
+and returns a null `getEffectiveAtMs()`. Use the parameter version and check for a timestamp
+before doing time arithmetic.
 
 ## Retained signal history
 

@@ -16,6 +16,8 @@ public final class Strategy {
     private final String id;
     private final List<DeclaredProperty> declaredProperties;
     private final List<String> requires;
+    private final String name;
+    private final String language;
     private final BacktestWorkflow workflow;
 
     /** Internal constructor used by the SDK workflow; not part of the public contract. */
@@ -30,9 +32,16 @@ public final class Strategy {
 
     /** Internal constructor used by the SDK workflow; not part of the public contract. */
     public Strategy(String id, List<DeclaredProperty> declaredProperties, List<String> requires, BacktestWorkflow workflow) {
-        this.id = Objects.requireNonNull(id, "id");
-        this.declaredProperties = List.copyOf(declaredProperties);
-        this.requires = List.copyOf(requires);
+        this(new CompiledStrategy(id, declaredProperties, requires), workflow);
+    }
+
+    /** Internal constructor used by the SDK workflow. */
+    public Strategy(CompiledStrategy compiled, BacktestWorkflow workflow) {
+        this.id = Objects.requireNonNull(compiled.id(), "id");
+        this.declaredProperties = compiled.declaredProperties();
+        this.requires = compiled.requires();
+        this.name = compiled.name();
+        this.language = compiled.language();
         this.workflow = Objects.requireNonNull(workflow, "workflow");
     }
 
@@ -46,6 +55,12 @@ public final class Strategy {
 
     /** Capabilities required by this compiled strategy, such as {@code indicators.pro}. */
     public List<String> requires() { return requires; }
+
+    /** The name declared by the strategy source, or null when absent. */
+    public String name() { return name; }
+
+    /** The source language, such as java or qtscript, or null when absent. */
+    public String language() { return language; }
 
     /** Run a backtest with this strategy. Prepare + execute start immediately. */
     public CompletableFuture<Backtest> executeBacktest(BacktestRequest request, BacktestOptions options) {

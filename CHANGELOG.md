@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.41.0] — 2026-11-25
+
+### Added ✨
+
+- Organize datasets with `createCollection`, `getCollections`, `getCollection`, `updateCollection`,
+  `deleteCollection`, and `moveDataset`. Use `getDatasets(includeDeleted, "none")` to list datasets
+  at the root. Dataset and account responses expose import provenance and CEX quotas.
+- Read strategy names and languages, discover Solana pools, and address live Solana sources.
+
+### Changed 🔄
+
+- Adopt OpenAPI 0.128.70 and AsyncAPI 0.4.0. A waiting run stores parameter updates without an
+  effective timestamp. Recover signals outside the WebSocket retention window through REST.
+- Signal channel marketplace operations are available through the generated client.
+
 ## [0.40.0] — 2026-11-19
 
 ### Added ✨

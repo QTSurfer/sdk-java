@@ -47,17 +47,17 @@ for (PoolDetail pool : qts.getPools("robinhood", "uniswap-v3")) {
 
 `getPools(exchangeId)` selects the venue's first protocol; its two-argument overload accepts any
 protocol listed in `Exchange.segments`. Both return `List<PoolDetail>` on `QTSurfer` and
-`AuthenticatedClient`. Pool `id` is the address to start live execution with; `symbol` is the pair
+`AuthenticatedClient`. Pool `id` is its address; `symbol` is the pair
 used by signals. `base`/`quote` and their addresses identify tokens, `feePercent` is the pool fee,
 and `tvlUsd` and `volume24hUsd` are USD values. Optional `lastPrice` is base in quote tokens;
 optional `volume24h` is quote-token volume; absent `createdAt` means no known creation date.
-The catalogue contains the 50 pools with most 24-hour volume among those with at least USD 10,000
-liquidity, refreshed hourly (including price/volume). Valid unlisted pools can still run.
+The catalogue ranks eligible pools by recent volume. The generated catalogue response also exposes
+selection and refresh metadata.
 Use `getInstruments` for CEX; passing one to `getPools` is an explicit error.
 
 ## Download an hour of market data
 
-`downloadTickers` and `downloadKlines` stream one UTC-hour segment from the last seven days. `hour` is
+`downloadTickers` and `downloadKlines` stream one recent UTC-hour segment. `hour` is
 `YYYY-MM-DDTHH`; generate a recent UTC value rather than copying a historical date. Lastra is the default; request
 `DownloadFormat.PARQUET` for on-demand conversion. Always close the returned stream.
 
@@ -102,8 +102,12 @@ by stored data. A deployment can instead answer `404 NOT_YET_AVAILABLE` with `Re
 used when there are no provisional rows to serve. `404 NO_DATA` means a stored hour has no rows for
 the instrument; `503 TEMPORARILY_UNAVAILABLE` requests a retry after `Retry-After`.
 
-An hour that started more than seven days ago returns `400 OUTSIDE_WINDOW`. Inspect
+An hour outside the recent download window returns `400 OUTSIDE_WINDOW`. Inspect
 `QTSDownloadError.getReason()`, `getNext()` and `getResponseHeaders()`: `next` contains a `POST
 /datasets/imports` CEX import of that exact hour. The SDK preserves that request and never sends it
 automatically. See [datasets.md](datasets.md) for older history and range imports. Unknown reasons
 should be treated like an absent reason, with the HTTP status and message available for diagnosis.
+
+Solana listings use case-sensitive base58 pool addresses and can omit `getFeePercent()`. Use
+`getPools("solana", protocol)` for discovery. Solana live runs use the token mint in the
+`pumpfun` segment. See [live execution](live.md).

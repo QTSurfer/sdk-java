@@ -143,7 +143,10 @@ public final class LiveConnection implements AutoCloseable {
         });
     }
 
-    /** Send the same owner-only parameter update as REST {@code PUT /live/{runId}/params}. */
+    /**
+     * Send the same owner-only parameter update as REST {@code PUT /live/{runId}/params}.
+     * A waiting run stores the new values for its first source and returns no effective timestamp.
+     */
     public CompletableFuture<LiveParamsUpdateResult> updateParams(UpdateLiveParamsRequest request) {
         Objects.requireNonNull(request, "request");
         if (closed.get()) return CompletableFuture.failedFuture(new QTSError("Live connection is closed"));
@@ -187,7 +190,10 @@ public final class LiveConnection implements AutoCloseable {
         return updateParams(UpdateLiveParamsRequestBuilder.builder().params(params));
     }
 
-    /** Read up to 300 recent sandbox signals from the subscribed channel, oldest first. */
+    /**
+     * Request up to 300 recent sandbox signals from the subscribed channel, oldest first.
+     * The server controls how many signals it retains. Use REST history to recover older signals.
+     */
     public CompletableFuture<LiveSignalHistory> history() {
         return history(300, null);
     }

@@ -13,7 +13,12 @@ import com.qtsurfer.api.sdk.internal.MarketCatalogues;
 import com.qtsurfer.api.client.invoker.ApiClient;
 import com.qtsurfer.api.client.invoker.QTSurferFailoverHttpClient;
 import com.qtsurfer.api.client.invoker.ApiException;
+import com.qtsurfer.api.client.model.Collection;
+import com.qtsurfer.api.client.model.CollectionCreateRequest;
+import com.qtsurfer.api.client.model.CollectionDeleted;
+import com.qtsurfer.api.client.model.CollectionUpdateRequest;
 import com.qtsurfer.api.client.model.CreateDatasetRequest;
+import com.qtsurfer.api.client.model.DatasetMoveRequest;
 import com.qtsurfer.api.client.model.Account;
 import com.qtsurfer.api.client.model.AccountUsage;
 import com.qtsurfer.api.client.model.Dataset;
@@ -638,10 +643,81 @@ public final class QTSurfer {
      * @return the caller's datasets in newest-first order
      */
     public List<Dataset> getDatasets(boolean includeDeleted) {
+        return getDatasets(includeDeleted, null);
+    }
+
+    /**
+     * List datasets, optionally filtered by collection.
+     *
+     * @param includeDeleted whether to include soft-deleted datasets
+     * @param collectionId a collection ID, {@code "none"} for root datasets, or {@code null} for all
+     * @return matching datasets
+     */
+    public List<Dataset> getDatasets(boolean includeDeleted, String collectionId) {
         try {
-            return datasetApi.listDatasets(includeDeleted).getDatasets();
+            return datasetApi.listDatasets(includeDeleted, collectionId).getDatasets();
         } catch (ApiException e) {
             throw new QTSError("listDatasets call failed: " + describe(e), e);
+        }
+    }
+
+    /** Move a dataset to a collection or to the root when {@code collectionId} is {@code null}. */
+    public DatasetWithLinks moveDataset(String datasetId, String collectionId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        try {
+            return datasetApi.moveDataset(datasetId, new DatasetMoveRequest().collectionId(collectionId));
+        } catch (ApiException e) {
+            throw new QTSError("moveDataset call failed: " + describe(e), e);
+        }
+    }
+
+    /** Create an empty dataset collection. */
+    public Collection createCollection(CollectionCreateRequest request) {
+        Objects.requireNonNull(request, "request");
+        try {
+            return datasetApi.createCollection(request);
+        } catch (ApiException e) {
+            throw new QTSError("createCollection call failed: " + describe(e), e);
+        }
+    }
+
+    /** List all dataset collections in name order. */
+    public List<Collection> getCollections() {
+        try {
+            return datasetApi.listCollections().getCollections();
+        } catch (ApiException e) {
+            throw new QTSError("getCollections call failed: " + describe(e), e);
+        }
+    }
+
+    /** Read one dataset collection and its dataset counts. */
+    public Collection getCollection(String collectionId) {
+        Objects.requireNonNull(collectionId, "collectionId");
+        try {
+            return datasetApi.getCollection(collectionId);
+        } catch (ApiException e) {
+            throw new QTSError("getCollection call failed: " + describe(e), e);
+        }
+    }
+
+    /** Rename a collection or update its description. */
+    public Collection updateCollection(String collectionId, CollectionUpdateRequest request) {
+        Objects.requireNonNull(collectionId, "collectionId");
+        Objects.requireNonNull(request, "request");
+        try {
+            return datasetApi.updateCollection(collectionId, request);
+        } catch (ApiException e) {
+            throw new QTSError("updateCollection call failed: " + describe(e), e);
+        }
+    }
+
+    /** Delete a collection and move its datasets to the root. */
+    public CollectionDeleted deleteCollection(String collectionId) {
+        Objects.requireNonNull(collectionId, "collectionId");
+        try {
+            return datasetApi.deleteCollection(collectionId);
+        } catch (ApiException e) {
+            throw new QTSError("deleteCollection call failed: " + describe(e), e);
         }
     }
 
@@ -855,7 +931,7 @@ public final class QTSurfer {
      * @param exchangeId centralized exchange id
      * @param base base asset
      * @param quote quote asset
-     * @param hour UTC hour within the last seven days, {@code YYYY-MM-DDTHH}
+     * @param hour UTC hour within the download window, {@code YYYY-MM-DDTHH}
      * @param format binary format; null defaults to Lastra
      * @return unbuffered response, which the caller must close
      * @throws QTSDownloadError on HTTP or transport failure

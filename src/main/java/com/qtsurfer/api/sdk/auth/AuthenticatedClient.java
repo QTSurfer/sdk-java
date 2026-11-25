@@ -17,7 +17,12 @@ import com.qtsurfer.api.client.invoker.ApiException;
 import com.qtsurfer.api.client.model.Account;
 import com.qtsurfer.api.client.model.AccountUsage;
 import com.qtsurfer.api.client.model.AuthTokenResponse;
+import com.qtsurfer.api.client.model.Collection;
+import com.qtsurfer.api.client.model.CollectionCreateRequest;
+import com.qtsurfer.api.client.model.CollectionDeleted;
+import com.qtsurfer.api.client.model.CollectionUpdateRequest;
 import com.qtsurfer.api.client.model.CreateDatasetRequest;
+import com.qtsurfer.api.client.model.DatasetMoveRequest;
 import com.qtsurfer.api.client.model.Dataset;
 import com.qtsurfer.api.client.model.DataSourceType;
 import com.qtsurfer.api.client.model.DatasetCreated;
@@ -797,8 +802,61 @@ public final class AuthenticatedClient {
      * @return the caller's datasets in newest-first order
      */
     public List<Dataset> getDatasets(boolean includeDeleted) {
+        return getDatasets(includeDeleted, null);
+    }
+
+    /**
+     * List datasets, optionally filtered by collection.
+     *
+     * @param includeDeleted whether to include soft-deleted datasets
+     * @param collectionId a collection ID, {@code "none"} for root datasets, or {@code null} for all
+     * @return matching datasets
+     */
+    public List<Dataset> getDatasets(boolean includeDeleted, String collectionId) {
         return withRefreshOn401(() -> callDataset(
-                () -> datasetApi.listDatasets(includeDeleted).getDatasets(), "listDatasets"));
+                () -> datasetApi.listDatasets(includeDeleted, collectionId).getDatasets(), "listDatasets"));
+    }
+
+    /** Move a dataset to a collection or to the root when {@code collectionId} is {@code null}. */
+    public DatasetWithLinks moveDataset(String datasetId, String collectionId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        return withRefreshOn401(() -> callDataset(
+                () -> datasetApi.moveDataset(datasetId, new DatasetMoveRequest().collectionId(collectionId)), "moveDataset"));
+    }
+
+    /** Create an empty dataset collection. */
+    public Collection createCollection(CollectionCreateRequest request) {
+        Objects.requireNonNull(request, "request");
+        return withRefreshOn401(() -> callDataset(
+                () -> datasetApi.createCollection(request), "createCollection"));
+    }
+
+    /** List all dataset collections in name order. */
+    public List<Collection> getCollections() {
+        return withRefreshOn401(() -> callDataset(
+                () -> datasetApi.listCollections().getCollections(), "getCollections"));
+    }
+
+    /** Read one dataset collection and its dataset counts. */
+    public Collection getCollection(String collectionId) {
+        Objects.requireNonNull(collectionId, "collectionId");
+        return withRefreshOn401(() -> callDataset(
+                () -> datasetApi.getCollection(collectionId), "getCollection"));
+    }
+
+    /** Rename a collection or update its description. */
+    public Collection updateCollection(String collectionId, CollectionUpdateRequest request) {
+        Objects.requireNonNull(collectionId, "collectionId");
+        Objects.requireNonNull(request, "request");
+        return withRefreshOn401(() -> callDataset(
+                () -> datasetApi.updateCollection(collectionId, request), "updateCollection"));
+    }
+
+    /** Delete a collection and move its datasets to the root. */
+    public CollectionDeleted deleteCollection(String collectionId) {
+        Objects.requireNonNull(collectionId, "collectionId");
+        return withRefreshOn401(() -> callDataset(
+                () -> datasetApi.deleteCollection(collectionId), "deleteCollection"));
     }
 
     /** @deprecated Use {@link #getDatasets()}. */
@@ -1242,7 +1300,7 @@ public final class AuthenticatedClient {
      * @param exchangeId centralized exchange id
      * @param base base asset
      * @param quote quote asset
-     * @param hour UTC hour within the last seven days, {@code YYYY-MM-DDTHH}
+     * @param hour UTC hour within the download window, {@code YYYY-MM-DDTHH}
      * @param format binary format; null defaults to Lastra
      * @return response whose body the caller must close
      * @throws QTSDownloadError on HTTP or transport failure

@@ -19,6 +19,25 @@ all.stream().filter(dataset -> dataset.getDeletedAt() != null)
         .forEach(dataset -> System.out.println(dataset.getDatasetId() + " deleted " + dataset.getDeletedAt()));
 ```
 
+## Collections
+
+A collection is a one-level folder. Use this example with the ID of an existing dataset.
+
+```java
+import com.qtsurfer.api.client.model.CollectionCreateRequest;
+
+var collection = qts.createCollection(new CollectionCreateRequest().name("Majors"));
+qts.moveDataset(datasetId, collection.getCollectionId());
+var inFolder = qts.getDatasets(false, collection.getCollectionId());
+qts.moveDataset(datasetId, null);
+var root = qts.getDatasets(false, "none");
+```
+
+`getCollections` lists folders. `getCollection` returns a folder with its dataset counts.
+`updateCollection` takes a `CollectionUpdateRequest` with a new name or description. An empty
+description clears it. `deleteCollection` returns its datasets to the root. An unknown or unowned
+collection ID gives `404`. You can also set `collectionId` when creating or importing a dataset.
+
 ## Import external history
 
 For supported external sources, ask the platform to fetch and ingest the history instead of uploading
@@ -50,7 +69,7 @@ The generated `DatasetImportRequest` model exposes the source-specific request f
 with `getDatasetImport` while its status is `FETCHING` or `INGESTING`, then inspect its error message
 when it is `FAILED`.
 
-For CEX history, including hours older than the seven-day direct-download window, select `CEX`
+For CEX history, including hours outside the direct-download window, select `CEX`
 and provide the `cex` block. `exchange` must be a CEX id from `getExchanges()`; `spot` is the only
 import segment today. `dataType` selects `ticker` or `klines`, and becomes the type for a CEX
 import. For uploads, the version's type is inferred from its rows when ingest reaches `READY`:
@@ -85,13 +104,17 @@ A DEX import with no cadence uses the plan default to build candles (`type=kline
 includes the source's native rate, omitting cadence can instead request per-trade history; provide
 `id` and `version` for that form. Dataset versions report their discovered cadence, including `rt`
 for irregular per-trade data. Uploads and prepares against `exchangeId=user` are not limited by the
-plan's exchange cadences. Imports consume dataset limits and are bounded by account
-`maxImportRangeHours`.
+plan's exchange cadences. Imports use dataset limits and separate DEX and CEX range quotas. Read `getMaxImportRangeHours()`,
+`getMaxCexImportRangeHours()` and `getMaxConcurrentImports()` on the account. CEX imports may
+also hit history, estimated file size, and distinct instruments per month limits. Inspect
+`QTSError.getReason()` and `getRetryable()` and honor `Retry-After` on `IMPORT_CONCURRENT_LIMIT`.
 
-Solana DEX imports support candles only. Even Elite uses its plan default (`1s`) when `cadence` is
+Supply provenance with `new DatasetImportRequest().meta(Map.of("user.source", "research"))`.
+Custom keys use `user.*` or `pool.*`. `Dataset.getMeta()` also reports import metadata.
+
+Solana DEX imports support candles only. The plan default applies when `cadence` is
 omitted; `id`, `version`, and `factory` are never needed. The address is base58 and case-sensitive.
-Candle imports whose `from` is older than 180 days return `400` immediately on every network;
-per-trade and CEX imports are not subject to that history limit. DEX candle grids can be sparse: a
+Candle imports outside available history can be refused. DEX candle grids can be sparse: a
 bar may be absent for an interval with no trades.
 
 ```java

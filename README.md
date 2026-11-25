@@ -21,6 +21,9 @@ orchestration, normalized errors, cancellation, authenticated-session management
 WebSocket subscriptions. It uses the JDK HTTP client, Failsafe for polling and retry, and SLF4J 2.x
 without shipping a logging binding.
 
+Organize datasets with collections and inspect import provenance and quotas. See the
+[signal channels guide](docs/signal_channels.md) for the generated workflow.
+
 Discover CEX instruments with `getInstruments` and typed DEX pools with `getPools`, import CEX or
 DEX history, and preserve provisional-data and timestamp-unit headers with
 `downloadTickersWithMetadata` / `downloadKlinesWithMetadata`. See the focused guides below.

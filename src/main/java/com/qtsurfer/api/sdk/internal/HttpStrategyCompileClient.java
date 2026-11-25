@@ -70,7 +70,8 @@ public final class HttpStrategyCompileClient implements StrategyCompileClient {
                 if (node.isTextual()) requires.add(node.asText());
             });
         }
-        return new CompiledStrategy(json.get("strategyId").asText(), properties, requires);
+        return new CompiledStrategy(json.get("strategyId").asText(), properties, requires,
+                json.path("name").asText(null), json.path("language").asText(null));
     }
 
     private void applyInterceptor(HttpRequest.Builder builder) {

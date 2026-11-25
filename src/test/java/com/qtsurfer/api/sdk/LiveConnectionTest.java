@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class LiveConnectionTest {
@@ -54,6 +55,7 @@ class LiveConnectionTest {
     private final AtomicInteger socketConnections = new AtomicInteger();
     private boolean rejectSubscription;
     private boolean rejectRpc;
+    private boolean waitingParams;
     private boolean historyPositionLost;
     private boolean historyNotSubscribed;
     private boolean refreshToken;
@@ -151,6 +153,16 @@ class LiveConnectionTest {
             assertEquals("run-1", rpcBody.get().path("runId").asText());
         }
         assertEquals(1, tokenRequests.get());
+    }
+
+    @Test
+    void decodesWaitingParamsWithoutAnEffectiveTimestamp() throws Exception {
+        waitingParams = true;
+        try (LiveConnection connection = client().connectLive("run-1", options()).get(5, TimeUnit.SECONDS)) {
+            LiveParamsUpdateResult result = connection.updateParams(Map.of("period", 12)).get(5, TimeUnit.SECONDS);
+            assertEquals(2, result.getParamsVersion());
+            assertNull(result.getEffectiveAtMs());
+        }
     }
 
     @Test
@@ -302,7 +314,9 @@ class LiveConnectionTest {
             } else {
                 send(socket, Protocol.Reply.newBuilder().setId(command.getId())
                         .setRpc(Protocol.RPCResult.newBuilder().setData(ByteString.copyFromUtf8(
-                                "{\"runId\":\"run-1\",\"paramsVersion\":2,\"effectiveAtMs\":123}")))
+                                waitingParams
+                                        ? "{\"runId\":\"run-1\",\"paramsVersion\":2}"
+                                        : "{\"runId\":\"run-1\",\"paramsVersion\":2,\"effectiveAtMs\":123}")))
                         .build());
             }
         } else if (command.hasHistory()) {

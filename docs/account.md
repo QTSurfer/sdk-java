@@ -47,3 +47,8 @@ System.out.printf("Signals use %d bytes; total use is %d bytes%n",
 Datasets, registered strategies, and retained execution signals share one storage pool. Check usage
 before enabling relay for a high-volume live run; use `relay=false` when no consumer needs live
 signals or retained history. See [live.md](live.md) for the relay and signal-history lifecycle.
+
+`getMaxImportRangeHours()` is the DEX range. CEX range, lookback and monthly per-market limits are
+available through `getMaxCexImportRangeHours()`, `getMaxCexHistoryDays()` and
+`getMaxCexImportInstrumentsPerMonth()`. `getMaxConcurrentImports()` applies to work in flight.
+`getAccountUsage()` reports the month and per-market counters when the platform supplies them.
